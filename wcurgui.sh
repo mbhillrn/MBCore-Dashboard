@@ -50,6 +50,9 @@ main() {
     # Check prerequisites
     if ! run_prereq_check; then
         msg_err "Cannot continue without required prerequisites"
+        echo ""
+        echo -en "${T_DIM}Press Enter to exit...${RST}"
+        read -r
         exit 1
     fi
 
@@ -58,11 +61,31 @@ main() {
         echo ""
         msg_err "Could not detect Bitcoin Core"
         msg_info "Make sure Bitcoin Core is installed"
+        echo ""
+        echo -en "${T_DIM}Press Enter to exit...${RST}"
+        read -r
         exit 1
     fi
 
     echo ""
     msg_ok "Detection complete!"
+    echo ""
+    echo -e "${T_DIM}Environment variables set:${RST}"
+    echo -e "  ${BWHITE}\$WCURGUI_CLI_PATH${RST}   = $WCURGUI_CLI_PATH"
+    echo -e "  ${BWHITE}\$WCURGUI_DATADIR${RST}    = $WCURGUI_DATADIR"
+    echo -e "  ${BWHITE}\$WCURGUI_CONF${RST}       = $WCURGUI_CONF"
+    echo -e "  ${BWHITE}\$WCURGUI_NETWORK${RST}    = $WCURGUI_NETWORK"
+    echo -e "  ${BWHITE}\$WCURGUI_RPC_HOST${RST}   = $WCURGUI_RPC_HOST"
+    echo -e "  ${BWHITE}\$WCURGUI_RPC_PORT${RST}   = $WCURGUI_RPC_PORT"
+    [[ -n "$WCURGUI_COOKIE_PATH" ]] && echo -e "  ${BWHITE}\$WCURGUI_COOKIE_PATH${RST}= $WCURGUI_COOKIE_PATH"
+    [[ -n "$WCURGUI_RPC_USER" ]] && echo -e "  ${BWHITE}\$WCURGUI_RPC_USER${RST}   = $WCURGUI_RPC_USER"
+    echo ""
+    echo -e "${T_DIM}Cache saved to: $CACHE_FILE${RST}"
+    echo ""
+    print_divider "═" 60
+    echo ""
+    echo -en "${T_INFO}Press Enter to exit...${RST}"
+    read -r
 }
 
 main "$@"

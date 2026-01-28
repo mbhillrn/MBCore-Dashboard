@@ -1,33 +1,36 @@
 #!/bin/bash
 # WCURGUI - Bitcoin Core Detection
 # Detects Bitcoin Core installation, datadir, conf, and auth settings
+# All detected values stored in WCURGUI_* environment variables
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/ui.sh"
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ENVIRONMENT VARIABLES (WCURGUI_ prefix to avoid conflicts)
+# These are exported so other scripts can use them
+# ═══════════════════════════════════════════════════════════════════════════════
+
+export WCURGUI_CLI_PATH=""
+export WCURGUI_DATADIR=""
+export WCURGUI_CONF=""
+export WCURGUI_NETWORK="main"
+export WCURGUI_RPC_HOST="127.0.0.1"
+export WCURGUI_RPC_PORT="8332"
+export WCURGUI_RPC_USER=""
+export WCURGUI_RPC_PASS=""
+export WCURGUI_COOKIE_PATH=""
+export WCURGUI_VERSION=""
+export WCURGUI_RUNNING=0
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Cache file location
 CACHE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/wcurgui"
-CACHE_FILE="$CACHE_DIR/detection_cache.json"
+CACHE_FILE="$CACHE_DIR/detection_cache.conf"
 
-# Detection results (exported for other scripts)
-export BITCOIN_CLI_PATH=""
-export BITCOIN_DATADIR=""
-export BITCOIN_CONF=""
-export BITCOIN_NETWORK="main"   # main, test, signet, regtest
-export BITCOIN_RPC_HOST="127.0.0.1"
-export BITCOIN_RPC_PORT="8332"
-export BITCOIN_RPC_USER=""
-export BITCOIN_RPC_PASS=""
-export BITCOIN_COOKIE_PATH=""
-export BITCOIN_VERSION=""
-export BITCOIN_RUNNING=0
-export BITCOIN_DETECTION_METHOD=""
-
-# Common datadir locations to search (Linux)
+# Common datadir locations
 DATADIR_CANDIDATES=(
     "$HOME/.bitcoin"
     "/var/lib/bitcoind"
@@ -38,7 +41,7 @@ DATADIR_CANDIDATES=(
     "/home/bitcoin/.bitcoin"
 )
 
-# Fallback binary search locations (only used if bitcoin-cli not in PATH)
+# Fallback binary search paths
 BINARY_SEARCH_PATHS=(
     "/usr/bin"
     "/usr/local/bin"
@@ -48,53 +51,101 @@ BINARY_SEARCH_PATHS=(
     "$HOME/.local/bin"
 )
 
+# Common conf file locations
+CONF_CANDIDATES=(
+    "$HOME/.bitcoin/bitcoin.conf"
+    "/etc/bitcoin/bitcoin.conf"
+    "/etc/bitcoind/bitcoin.conf"
+    "/srv/bitcoin/bitcoin.conf"
+    "/var/lib/bitcoind/bitcoin.conf"
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CTRL+C HANDLING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+CTRL_C_COUNT=0
+CTRL_C_TIME=0
+
+handle_ctrl_c() {
+    local now
+    now=$(date +%s)
+
+    # Reset counter if more than 2 seconds since last Ctrl+C
+    if (( now - CTRL_C_TIME > 2 )); then
+        CTRL_C_COUNT=0
+    fi
+
+    CTRL_C_TIME=$now
+    ((CTRL_C_COUNT++))
+
+    if [[ $CTRL_C_COUNT -eq 1 ]]; then
+        echo ""
+        msg_warn "Press Ctrl+C again to force quit (or wait for current operation to finish)"
+    else
+        echo ""
+        msg_info "Force quitting..."
+        cursor_show
+        exit 130
+    fi
+}
+
+trap handle_ctrl_c SIGINT
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CACHE FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 save_cache() {
     mkdir -p "$CACHE_DIR"
+
     cat > "$CACHE_FILE" << EOF
-{
-    "cli_path": "$BITCOIN_CLI_PATH",
-    "datadir": "$BITCOIN_DATADIR",
-    "conf": "$BITCOIN_CONF",
-    "network": "$BITCOIN_NETWORK",
-    "rpc_host": "$BITCOIN_RPC_HOST",
-    "rpc_port": "$BITCOIN_RPC_PORT",
-    "cookie_path": "$BITCOIN_COOKIE_PATH",
-    "timestamp": "$(date -Iseconds)"
-}
+# WCURGUI Detection Cache
+# Generated: $(date)
+WCURGUI_CLI_PATH="$WCURGUI_CLI_PATH"
+WCURGUI_DATADIR="$WCURGUI_DATADIR"
+WCURGUI_CONF="$WCURGUI_CONF"
+WCURGUI_NETWORK="$WCURGUI_NETWORK"
+WCURGUI_RPC_HOST="$WCURGUI_RPC_HOST"
+WCURGUI_RPC_PORT="$WCURGUI_RPC_PORT"
+WCURGUI_RPC_USER="$WCURGUI_RPC_USER"
+WCURGUI_COOKIE_PATH="$WCURGUI_COOKIE_PATH"
 EOF
     chmod 600 "$CACHE_FILE"
+    msg_ok "Configuration saved to cache"
 }
 
 load_cache() {
     [[ ! -f "$CACHE_FILE" ]] && return 1
 
-    local cached
-    cached=$(cat "$CACHE_FILE" 2>/dev/null) || return 1
+    # Source the cache file to load variables
+    source "$CACHE_FILE" 2>/dev/null || return 1
 
-    if command -v jq &>/dev/null; then
-        BITCOIN_CLI_PATH=$(echo "$cached" | jq -r '.cli_path // empty')
-        BITCOIN_DATADIR=$(echo "$cached" | jq -r '.datadir // empty')
-        BITCOIN_CONF=$(echo "$cached" | jq -r '.conf // empty')
-        BITCOIN_NETWORK=$(echo "$cached" | jq -r '.network // "main"')
-        BITCOIN_RPC_HOST=$(echo "$cached" | jq -r '.rpc_host // "127.0.0.1"')
-        BITCOIN_RPC_PORT=$(echo "$cached" | jq -r '.rpc_port // "8332"')
-        BITCOIN_COOKIE_PATH=$(echo "$cached" | jq -r '.cookie_path // empty')
+    # Check if we have at least CLI path
+    [[ -z "$WCURGUI_CLI_PATH" ]] && return 1
+
+    return 0
+}
+
+display_cached_config() {
+    echo ""
+    echo -e "${T_SECONDARY}${BOLD}Cached Configuration:${RST}"
+    echo ""
+    print_kv "Bitcoin CLI" "${WCURGUI_CLI_PATH:-not set}" 18
+    print_kv "Data Directory" "${WCURGUI_DATADIR:-not set}" 18
+    print_kv "Config File" "${WCURGUI_CONF:-not set}" 18
+    print_kv "Network" "${WCURGUI_NETWORK:-main}" 18
+    print_kv "RPC Host:Port" "${WCURGUI_RPC_HOST:-127.0.0.1}:${WCURGUI_RPC_PORT:-8332}" 18
+    if [[ -n "$WCURGUI_COOKIE_PATH" ]]; then
+        print_kv "Auth" "Cookie ($WCURGUI_COOKIE_PATH)" 18
+    elif [[ -n "$WCURGUI_RPC_USER" ]]; then
+        print_kv "Auth" "User/Pass ($WCURGUI_RPC_USER)" 18
     fi
-
-    # Validate cached cli still works
-    if [[ -n "$BITCOIN_CLI_PATH" ]]; then
-        "$BITCOIN_CLI_PATH" --version &>/dev/null && return 0
-    fi
-
-    return 1
+    echo ""
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PROCESS DETECTION - Check if bitcoind is running
+# PROCESS DETECTION
 # ═══════════════════════════════════════════════════════════════════════════════
 
 detect_running_process() {
@@ -102,40 +153,30 @@ detect_running_process() {
     pinfo=$(pgrep -a bitcoind 2>/dev/null | head -1) || return 1
     [[ -z "$pinfo" ]] && return 1
 
-    BITCOIN_RUNNING=1
-    BITCOIN_DETECTION_METHOD="process"
+    WCURGUI_RUNNING=1
 
-    # Extract arguments from running process
     local args
     args=$(echo "$pinfo" | cut -d' ' -f3-)
 
-    # Parse -datadir
-    if [[ "$args" =~ -datadir=([^[:space:]]+) ]]; then
-        BITCOIN_DATADIR="${BASH_REMATCH[1]}"
-    fi
+    # Parse arguments from running process
+    [[ "$args" =~ -datadir=([^[:space:]]+) ]] && WCURGUI_DATADIR="${BASH_REMATCH[1]}"
+    [[ "$args" =~ -conf=([^[:space:]]+) ]] && WCURGUI_CONF="${BASH_REMATCH[1]}"
 
-    # Parse -conf
-    if [[ "$args" =~ -conf=([^[:space:]]+) ]]; then
-        BITCOIN_CONF="${BASH_REMATCH[1]}"
-    fi
-
-    # Parse network flags
     if [[ "$args" =~ -testnet ]]; then
-        BITCOIN_NETWORK="test"
-        BITCOIN_RPC_PORT="18332"
+        WCURGUI_NETWORK="test"
+        WCURGUI_RPC_PORT="18332"
     elif [[ "$args" =~ -signet ]]; then
-        BITCOIN_NETWORK="signet"
-        BITCOIN_RPC_PORT="38332"
+        WCURGUI_NETWORK="signet"
+        WCURGUI_RPC_PORT="38332"
     elif [[ "$args" =~ -regtest ]]; then
-        BITCOIN_NETWORK="regtest"
-        BITCOIN_RPC_PORT="18443"
+        WCURGUI_NETWORK="regtest"
+        WCURGUI_RPC_PORT="18443"
     fi
 
-    # Parse RPC settings from args
-    [[ "$args" =~ -rpcport=([0-9]+) ]] && BITCOIN_RPC_PORT="${BASH_REMATCH[1]}"
-    [[ "$args" =~ -rpcuser=([^[:space:]]+) ]] && BITCOIN_RPC_USER="${BASH_REMATCH[1]}"
-    [[ "$args" =~ -rpcpassword=([^[:space:]]+) ]] && BITCOIN_RPC_PASS="${BASH_REMATCH[1]}"
-    [[ "$args" =~ -rpccookiefile=([^[:space:]]+) ]] && BITCOIN_COOKIE_PATH="${BASH_REMATCH[1]}"
+    [[ "$args" =~ -rpcport=([0-9]+) ]] && WCURGUI_RPC_PORT="${BASH_REMATCH[1]}"
+    [[ "$args" =~ -rpcuser=([^[:space:]]+) ]] && WCURGUI_RPC_USER="${BASH_REMATCH[1]}"
+    [[ "$args" =~ -rpcpassword=([^[:space:]]+) ]] && WCURGUI_RPC_PASS="${BASH_REMATCH[1]}"
+    [[ "$args" =~ -rpccookiefile=([^[:space:]]+) ]] && WCURGUI_COOKIE_PATH="${BASH_REMATCH[1]}"
 
     return 0
 }
@@ -152,17 +193,16 @@ detect_systemd_service() {
     [[ -z "$services" ]] && return 1
 
     for service in $services; do
+        # Check if active
         systemctl is-active --quiet "$service" 2>/dev/null || continue
-
-        BITCOIN_DETECTION_METHOD="systemd"
 
         local exec_start
         exec_start=$(systemctl show "$service" --property=ExecStart 2>/dev/null)
 
-        [[ "$exec_start" =~ -datadir=([^[:space:]\;]+) ]] && BITCOIN_DATADIR="${BASH_REMATCH[1]}"
-        [[ "$exec_start" =~ -conf=([^[:space:]\;]+) ]] && BITCOIN_CONF="${BASH_REMATCH[1]}"
+        [[ "$exec_start" =~ -datadir=([^[:space:]\;]+) ]] && WCURGUI_DATADIR="${BASH_REMATCH[1]}"
+        [[ "$exec_start" =~ -conf=([^[:space:]\;]+) ]] && WCURGUI_CONF="${BASH_REMATCH[1]}"
 
-        [[ -n "$BITCOIN_DATADIR" ]] && return 0
+        [[ -n "$WCURGUI_DATADIR" || -n "$WCURGUI_CONF" ]] && return 0
     done
 
     return 1
@@ -170,58 +210,158 @@ detect_systemd_service() {
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BITCOIN-CLI DETECTION
-# The smart way: just try it first, only search if "command not found"
 # ═══════════════════════════════════════════════════════════════════════════════
 
 detect_bitcoin_cli() {
-    # Already found?
-    [[ -n "$BITCOIN_CLI_PATH" && -x "$BITCOIN_CLI_PATH" ]] && return 0
-
-    # Just try running bitcoin-cli directly
+    # Just try running it
     local result
     result=$(bitcoin-cli --version 2>&1)
     local exit_code=$?
 
-    # If it worked, we're done
     if [[ $exit_code -eq 0 ]]; then
-        BITCOIN_CLI_PATH=$(command -v bitcoin-cli)
-        BITCOIN_VERSION=$(echo "$result" | head -1 | grep -oP 'v[\d.]+' || echo "unknown")
-        BITCOIN_DETECTION_METHOD="${BITCOIN_DETECTION_METHOD:-path}"
+        WCURGUI_CLI_PATH=$(command -v bitcoin-cli)
+        WCURGUI_VERSION=$(echo "$result" | head -1 | grep -oP 'v[\d.]+' || echo "unknown")
         return 0
     fi
 
-    # Check if it's "command not found" vs some other error
+    # Command not found - search for it
     if [[ "$result" == *"command not found"* ]] || [[ "$result" == *"not found"* ]]; then
-        # Not in PATH - need to search for it
-        msg_warn "bitcoin-cli not in PATH, searching common locations..."
-
         for dir in "${BINARY_SEARCH_PATHS[@]}"; do
             if [[ -x "$dir/bitcoin-cli" ]]; then
-                # Found it, verify it works
                 local test_result
                 test_result=$("$dir/bitcoin-cli" --version 2>&1)
                 if [[ $? -eq 0 ]]; then
-                    BITCOIN_CLI_PATH="$dir/bitcoin-cli"
-                    BITCOIN_VERSION=$(echo "$test_result" | head -1 | grep -oP 'v[\d.]+' || echo "unknown")
-                    BITCOIN_DETECTION_METHOD="search"
+                    WCURGUI_CLI_PATH="$dir/bitcoin-cli"
+                    WCURGUI_VERSION=$(echo "$test_result" | head -1 | grep -oP 'v[\d.]+' || echo "unknown")
                     return 0
                 fi
             fi
         done
-
-        # Really not found - probably not installed
-        msg_err "bitcoin-cli not found - is Bitcoin Core installed?"
         return 1
     fi
 
-    # Some other error (not "command not found") - cli exists but errored
-    # This shouldn't happen with --version, but handle it
-    BITCOIN_CLI_PATH=$(command -v bitcoin-cli 2>/dev/null)
-    if [[ -n "$BITCOIN_CLI_PATH" ]]; then
-        BITCOIN_VERSION="unknown"
+    # Some other error but cli exists
+    WCURGUI_CLI_PATH=$(command -v bitcoin-cli 2>/dev/null)
+    [[ -n "$WCURGUI_CLI_PATH" ]] && return 0
+
+    return 1
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONFIG FILE DETECTION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+validate_conf_file() {
+    local conf="$1"
+    [[ -f "$conf" ]] && return 0
+    return 1
+}
+
+find_conf_file() {
+    # Already found?
+    [[ -n "$WCURGUI_CONF" ]] && validate_conf_file "$WCURGUI_CONF" && return 0
+
+    # Check in datadir first if we have it
+    if [[ -n "$WCURGUI_DATADIR" && -f "$WCURGUI_DATADIR/bitcoin.conf" ]]; then
+        WCURGUI_CONF="$WCURGUI_DATADIR/bitcoin.conf"
         return 0
     fi
 
+    # Check common locations
+    for conf in "${CONF_CANDIDATES[@]}"; do
+        if validate_conf_file "$conf"; then
+            WCURGUI_CONF="$conf"
+            # Also grab datadir from same location if not set
+            if [[ -z "$WCURGUI_DATADIR" ]]; then
+                local dir
+                dir=$(dirname "$conf")
+                if validate_datadir "$dir"; then
+                    WCURGUI_DATADIR="$dir"
+                fi
+            fi
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+parse_conf_file() {
+    local conf="$1"
+    [[ ! -f "$conf" ]] && return 1
+
+    while IFS='=' read -r key value; do
+        [[ "$key" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "$key" ]] && continue
+
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | xargs)
+
+        case "$key" in
+            datadir)     [[ -z "$WCURGUI_DATADIR" ]] && WCURGUI_DATADIR="$value" ;;
+            testnet)     [[ "$value" == "1" ]] && WCURGUI_NETWORK="test" && WCURGUI_RPC_PORT="18332" ;;
+            signet)      [[ "$value" == "1" ]] && WCURGUI_NETWORK="signet" && WCURGUI_RPC_PORT="38332" ;;
+            regtest)     [[ "$value" == "1" ]] && WCURGUI_NETWORK="regtest" && WCURGUI_RPC_PORT="18443" ;;
+            rpcuser)     WCURGUI_RPC_USER="$value" ;;
+            rpcpassword) WCURGUI_RPC_PASS="$value" ;;
+            rpcport)     WCURGUI_RPC_PORT="$value" ;;
+            rpcbind)     [[ "$WCURGUI_RPC_HOST" == "127.0.0.1" ]] && WCURGUI_RPC_HOST="$value" ;;
+            rpccookiefile) WCURGUI_COOKIE_PATH="$value" ;;
+        esac
+    done < "$conf"
+    return 0
+}
+
+# Full system search for conf file
+search_conf_file() {
+    echo ""
+    msg_warn "This may take a while depending on your system..."
+    echo ""
+
+    start_spinner "Searching entire system for bitcoin.conf"
+
+    local found
+    found=$(find / -name "bitcoin.conf" -type f 2>/dev/null | head -10)
+
+    stop_spinner 0 "Search complete"
+
+    if [[ -z "$found" ]]; then
+        msg_err "No bitcoin.conf found on system"
+        return 1
+    fi
+
+    # Show what we found
+    echo ""
+    echo -e "${T_SECONDARY}Found these config files:${RST}"
+    echo ""
+
+    local i=1
+    local -a found_array
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        found_array+=("$file")
+        echo -e "  ${T_INFO}${i})${RST} $file"
+        ((i++))
+    done <<< "$found"
+
+    echo -e "  ${T_WARN}b)${RST} Go back"
+    echo ""
+
+    local choice
+    echo -en "${T_DIM}Select config file [1-$((i-1))]:${RST} "
+    read -r choice
+
+    if [[ "$choice" == "b" || "$choice" == "B" ]]; then
+        return 2  # Go back
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice < i )); then
+        WCURGUI_CONF="${found_array[$((choice-1))]}"
+        msg_ok "Selected: $WCURGUI_CONF"
+        return 0
+    fi
+
+    msg_err "Invalid selection"
     return 1
 }
 
@@ -238,7 +378,6 @@ validate_datadir() {
         return 0
     fi
 
-    # Check for testnet/signet/regtest subdirs
     for subdir in testnet3 signet regtest; do
         [[ -d "$dir/$subdir/blocks" ]] && return 0
     done
@@ -247,19 +386,29 @@ validate_datadir() {
 }
 
 find_datadir() {
-    # Already found from process/systemd?
-    [[ -n "$BITCOIN_DATADIR" ]] && validate_datadir "$BITCOIN_DATADIR" && return 0
+    # Already found?
+    [[ -n "$WCURGUI_DATADIR" ]] && validate_datadir "$WCURGUI_DATADIR" && return 0
 
-    # Check default first
+    # If we have conf, check its directory
+    if [[ -n "$WCURGUI_CONF" ]]; then
+        local conf_dir
+        conf_dir=$(dirname "$WCURGUI_CONF")
+        if validate_datadir "$conf_dir"; then
+            WCURGUI_DATADIR="$conf_dir"
+            return 0
+        fi
+    fi
+
+    # Check default
     if validate_datadir "$HOME/.bitcoin"; then
-        BITCOIN_DATADIR="$HOME/.bitcoin"
+        WCURGUI_DATADIR="$HOME/.bitcoin"
         return 0
     fi
 
-    # Check candidate locations
+    # Check candidates
     for dir in "${DATADIR_CANDIDATES[@]}"; do
         if validate_datadir "$dir"; then
-            BITCOIN_DATADIR="$dir"
+            WCURGUI_DATADIR="$dir"
             return 0
         fi
     done
@@ -269,7 +418,7 @@ find_datadir() {
         [[ -d "$mount" ]] || continue
         for subdir in bitcoin .bitcoin bitcoind; do
             if validate_datadir "$mount/$subdir"; then
-                BITCOIN_DATADIR="$mount/$subdir"
+                WCURGUI_DATADIR="$mount/$subdir"
                 return 0
             fi
         done
@@ -277,6 +426,72 @@ find_datadir() {
 
     return 1
 }
+
+# Full system search for datadir
+search_datadir() {
+    echo ""
+    msg_warn "Searching for blocks/blk*.dat files - this may take a LONG time..."
+    echo ""
+
+    start_spinner "Searching entire system for Bitcoin data"
+
+    local found
+    found=$(find / -name "blk00000.dat" -type f 2>/dev/null | head -5)
+
+    stop_spinner 0 "Search complete"
+
+    if [[ -z "$found" ]]; then
+        msg_err "No Bitcoin blockchain data found on system"
+        return 1
+    fi
+
+    echo ""
+    echo -e "${T_SECONDARY}Found blockchain data in:${RST}"
+    echo ""
+
+    local i=1
+    local -a found_array
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        # Get parent of blocks directory (the datadir)
+        local datadir
+        datadir=$(dirname "$(dirname "$file")")
+        found_array+=("$datadir")
+        echo -e "  ${T_INFO}${i})${RST} $datadir"
+        ((i++))
+    done <<< "$found"
+
+    echo -e "  ${T_WARN}b)${RST} Go back"
+    echo ""
+
+    local choice
+    echo -en "${T_DIM}Select data directory [1-$((i-1))]:${RST} "
+    read -r choice
+
+    if [[ "$choice" == "b" || "$choice" == "B" ]]; then
+        return 2
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice < i )); then
+        WCURGUI_DATADIR="${found_array[$((choice-1))]}"
+
+        # Confirm with user
+        echo ""
+        if prompt_yn "Use $WCURGUI_DATADIR as data directory?"; then
+            msg_ok "Selected: $WCURGUI_DATADIR"
+            return 0
+        else
+            return 1
+        fi
+    fi
+
+    msg_err "Invalid selection"
+    return 1
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COOKIE AUTH DETECTION
+# ═══════════════════════════════════════════════════════════════════════════════
 
 get_network_datadir() {
     local base="$1"
@@ -290,93 +505,33 @@ get_network_datadir() {
     esac
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# CONFIG FILE DETECTION
-# ═══════════════════════════════════════════════════════════════════════════════
-
-parse_conf_file() {
-    local conf="$1"
-    [[ ! -f "$conf" ]] && return 1
-
-    while IFS='=' read -r key value; do
-        [[ "$key" =~ ^[[:space:]]*# ]] && continue
-        [[ -z "$key" ]] && continue
-
-        key=$(echo "$key" | xargs)
-        value=$(echo "$value" | xargs)
-
-        case "$key" in
-            datadir)     [[ -z "$BITCOIN_DATADIR" ]] && BITCOIN_DATADIR="$value" ;;
-            testnet)     [[ "$value" == "1" ]] && BITCOIN_NETWORK="test" && BITCOIN_RPC_PORT="18332" ;;
-            signet)      [[ "$value" == "1" ]] && BITCOIN_NETWORK="signet" && BITCOIN_RPC_PORT="38332" ;;
-            regtest)     [[ "$value" == "1" ]] && BITCOIN_NETWORK="regtest" && BITCOIN_RPC_PORT="18443" ;;
-            rpcuser)     BITCOIN_RPC_USER="$value" ;;
-            rpcpassword) BITCOIN_RPC_PASS="$value" ;;
-            rpcport)     BITCOIN_RPC_PORT="$value" ;;
-            rpcbind)     [[ "$BITCOIN_RPC_HOST" == "127.0.0.1" ]] && BITCOIN_RPC_HOST="$value" ;;
-            rpccookiefile) BITCOIN_COOKIE_PATH="$value" ;;
-        esac
-    done < "$conf"
-    return 0
-}
-
-find_and_parse_conf() {
-    # If conf already set, validate it
-    if [[ -n "$BITCOIN_CONF" && -f "$BITCOIN_CONF" ]]; then
-        parse_conf_file "$BITCOIN_CONF"
-        return 0
-    fi
-
-    # Look in datadir
-    if [[ -n "$BITCOIN_DATADIR" && -f "$BITCOIN_DATADIR/bitcoin.conf" ]]; then
-        BITCOIN_CONF="$BITCOIN_DATADIR/bitcoin.conf"
-        parse_conf_file "$BITCOIN_CONF"
-        return 0
-    fi
-
-    # Check common system locations
-    for conf in /etc/bitcoin/bitcoin.conf /etc/bitcoind/bitcoin.conf; do
-        if [[ -f "$conf" ]]; then
-            BITCOIN_CONF="$conf"
-            parse_conf_file "$BITCOIN_CONF"
-            return 0
-        fi
-    done
-
-    return 1
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# COOKIE AUTH DETECTION
-# ═══════════════════════════════════════════════════════════════════════════════
-
 find_cookie() {
-    [[ -n "$BITCOIN_COOKIE_PATH" && -f "$BITCOIN_COOKIE_PATH" ]] && return 0
+    [[ -n "$WCURGUI_COOKIE_PATH" && -f "$WCURGUI_COOKIE_PATH" ]] && return 0
 
     local effective_datadir
-    effective_datadir=$(get_network_datadir "$BITCOIN_DATADIR" "$BITCOIN_NETWORK")
+    effective_datadir=$(get_network_datadir "$WCURGUI_DATADIR" "$WCURGUI_NETWORK")
 
     if [[ -f "$effective_datadir/.cookie" ]]; then
-        BITCOIN_COOKIE_PATH="$effective_datadir/.cookie"
+        WCURGUI_COOKIE_PATH="$effective_datadir/.cookie"
         return 0
     fi
 
-    [[ -f "$BITCOIN_DATADIR/.cookie" ]] && BITCOIN_COOKIE_PATH="$BITCOIN_DATADIR/.cookie" && return 0
+    [[ -f "$WCURGUI_DATADIR/.cookie" ]] && WCURGUI_COOKIE_PATH="$WCURGUI_DATADIR/.cookie" && return 0
 
     return 1
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CLI COMMAND BUILDER
+# CLI COMMAND BUILDER & TEST
 # ═══════════════════════════════════════════════════════════════════════════════
 
 get_cli_command() {
-    local cmd="${BITCOIN_CLI_PATH:-bitcoin-cli}"
+    local cmd="${WCURGUI_CLI_PATH:-bitcoin-cli}"
 
-    [[ -n "$BITCOIN_DATADIR" ]] && cmd+=" -datadir=$BITCOIN_DATADIR"
-    [[ -n "$BITCOIN_CONF" ]] && cmd+=" -conf=$BITCOIN_CONF"
+    [[ -n "$WCURGUI_DATADIR" ]] && cmd+=" -datadir=$WCURGUI_DATADIR"
+    [[ -n "$WCURGUI_CONF" ]] && cmd+=" -conf=$WCURGUI_CONF"
 
-    case "$BITCOIN_NETWORK" in
+    case "$WCURGUI_NETWORK" in
         test)   cmd+=" -testnet" ;;
         signet) cmd+=" -signet" ;;
         regtest) cmd+=" -regtest" ;;
@@ -385,78 +540,97 @@ get_cli_command() {
     echo "$cmd"
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# MAIN DETECTION FUNCTION
-# ═══════════════════════════════════════════════════════════════════════════════
+test_rpc_connection() {
+    local cli_cmd
+    cli_cmd=$(get_cli_command)
 
-run_detection() {
-    print_section "Bitcoin Core Detection"
+    # Try a simple RPC call
+    local result
+    result=$($cli_cmd getblockchaininfo 2>&1)
 
-    # Step 1: Check cache first
-    print_step 1 5 "Checking cached configuration"
-    if load_cache; then
-        msg_ok "Using cached configuration"
-        BITCOIN_DETECTION_METHOD="cache"
-        display_detection_results
-        print_section_end
+    if [[ $? -eq 0 ]] && [[ "$result" != *"error"* ]]; then
         return 0
     fi
-    msg_info "No valid cache, running fresh detection"
 
-    # Step 2: Check for running bitcoind process
-    print_step 2 5 "Checking for running bitcoind"
-    start_spinner "Scanning processes"
-    if detect_running_process; then
-        stop_spinner 0 "Found running bitcoind (PID: $(pgrep bitcoind | head -1))"
-    else
-        stop_spinner 0 "bitcoind not running"
+    return 1
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MANUAL INPUT FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+manual_enter_conf() {
+    echo ""
+    echo -e "${T_SECONDARY}Enter path to bitcoin.conf${RST}"
+    echo -e "${T_DIM}(or 'b' to go back)${RST}"
+    echo ""
+
+    local input
+    echo -en "${T_INFO}Path:${RST} "
+    read -r input
+
+    if [[ "$input" == "b" || "$input" == "B" ]]; then
+        return 2
     fi
 
-    # Also check systemd
-    if [[ -z "$BITCOIN_DATADIR" ]]; then
-        detect_systemd_service && msg_ok "Found systemd service config"
-    fi
+    # Expand ~ if used
+    input="${input/#\~/$HOME}"
 
-    # Step 3: Check bitcoin-cli (the smart way)
-    print_step 3 5 "Checking bitcoin-cli"
-    start_spinner "Testing bitcoin-cli"
-    if detect_bitcoin_cli; then
-        stop_spinner 0 "Found: $BITCOIN_CLI_PATH ($BITCOIN_VERSION)"
+    if [[ -f "$input" ]]; then
+        WCURGUI_CONF="$input"
+        msg_ok "Config file set: $WCURGUI_CONF"
+
+        # Check if datadir is in same location
+        local conf_dir
+        conf_dir=$(dirname "$input")
+        if [[ -z "$WCURGUI_DATADIR" ]] && validate_datadir "$conf_dir"; then
+            WCURGUI_DATADIR="$conf_dir"
+            msg_ok "Also found datadir: $WCURGUI_DATADIR"
+        fi
+        return 0
     else
-        stop_spinner 1 "bitcoin-cli not available"
-        print_section_end
+        msg_err "File not found: $input"
         return 1
     fi
+}
 
-    # Step 4: Find datadir
-    print_step 4 5 "Locating data directory"
-    start_spinner "Searching"
-    if find_datadir; then
-        stop_spinner 0 "Found: $BITCOIN_DATADIR"
-    else
-        stop_spinner 1 "Could not locate datadir"
+manual_enter_datadir() {
+    echo ""
+    echo -e "${T_SECONDARY}Enter path to Bitcoin data directory${RST}"
+    echo -e "${T_DIM}(or 'b' to go back)${RST}"
+    echo ""
+
+    local input
+    echo -en "${T_INFO}Path:${RST} "
+    read -r input
+
+    if [[ "$input" == "b" || "$input" == "B" ]]; then
+        return 2
     fi
 
-    # Step 5: Find config and auth settings
-    print_step 5 5 "Reading configuration"
-    start_spinner "Parsing"
-    find_and_parse_conf
-    find_cookie
+    input="${input/#\~/$HOME}"
 
-    if [[ -n "$BITCOIN_COOKIE_PATH" && -f "$BITCOIN_COOKIE_PATH" ]]; then
-        stop_spinner 0 "Cookie auth: $BITCOIN_COOKIE_PATH"
-    elif [[ -n "$BITCOIN_RPC_USER" ]]; then
-        stop_spinner 0 "User/pass auth configured"
+    if validate_datadir "$input"; then
+        WCURGUI_DATADIR="$input"
+        msg_ok "Data directory set: $WCURGUI_DATADIR"
+
+        # Check for conf in this dir
+        if [[ -z "$WCURGUI_CONF" && -f "$input/bitcoin.conf" ]]; then
+            WCURGUI_CONF="$input/bitcoin.conf"
+            msg_ok "Also found config: $WCURGUI_CONF"
+        fi
+        return 0
+    elif [[ -d "$input" ]]; then
+        msg_warn "Directory exists but doesn't look like a Bitcoin datadir"
+        if prompt_yn "Use it anyway?"; then
+            WCURGUI_DATADIR="$input"
+            return 0
+        fi
+        return 1
     else
-        stop_spinner 0 "Using defaults"
+        msg_err "Directory not found: $input"
+        return 1
     fi
-
-    # Save what we found
-    save_cache
-
-    display_detection_results
-    print_section_end
-    return 0
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -465,28 +639,27 @@ run_detection() {
 
 display_detection_results() {
     echo ""
-    echo -e "${T_PRIMARY}${BOX_H}${BOX_H}${BOX_H} Detection Results ${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${BOX_H}${RST}"
+    print_header "Detection Results"
     echo ""
 
-    print_kv "Detection Method" "${BITCOIN_DETECTION_METHOD:-fresh}" 20
-    print_kv "Bitcoin CLI" "${BITCOIN_CLI_PATH:-not found}" 20
-    print_kv "Version" "${BITCOIN_VERSION:-unknown}" 20
-    print_kv "Data Directory" "${BITCOIN_DATADIR:-not found}" 20
-    print_kv "Config File" "${BITCOIN_CONF:-default}" 20
-    print_kv "Network" "${BITCOIN_NETWORK}" 20
-    print_kv "RPC Host:Port" "${BITCOIN_RPC_HOST}:${BITCOIN_RPC_PORT}" 20
+    print_kv "Bitcoin CLI" "${WCURGUI_CLI_PATH:-not found}" 18
+    print_kv "Version" "${WCURGUI_VERSION:-unknown}" 18
+    print_kv "Data Directory" "${WCURGUI_DATADIR:-not found}" 18
+    print_kv "Config File" "${WCURGUI_CONF:-not found}" 18
+    print_kv "Network" "${WCURGUI_NETWORK}" 18
+    print_kv "RPC Host:Port" "${WCURGUI_RPC_HOST}:${WCURGUI_RPC_PORT}" 18
 
-    if [[ -n "$BITCOIN_COOKIE_PATH" && -f "$BITCOIN_COOKIE_PATH" ]]; then
-        print_kv "Auth Method" "Cookie" 20
-        print_kv "Cookie File" "$BITCOIN_COOKIE_PATH" 20
-    elif [[ -n "$BITCOIN_RPC_USER" ]]; then
-        print_kv "Auth Method" "User/Password" 20
-        print_kv "RPC User" "$BITCOIN_RPC_USER" 20
+    if [[ -n "$WCURGUI_COOKIE_PATH" && -f "$WCURGUI_COOKIE_PATH" ]]; then
+        print_kv "Auth Method" "Cookie" 18
+        print_kv "Cookie File" "$WCURGUI_COOKIE_PATH" 18
+    elif [[ -n "$WCURGUI_RPC_USER" ]]; then
+        print_kv "Auth Method" "User/Password" 18
+        print_kv "RPC User" "$WCURGUI_RPC_USER" 18
     else
-        print_kv "Auth Method" "Default (cookie expected)" 20
+        print_kv "Auth Method" "Default" 18
     fi
 
-    if [[ "$BITCOIN_RUNNING" -eq 1 ]]; then
+    if [[ "$WCURGUI_RUNNING" -eq 1 ]]; then
         echo ""
         echo -e "  ${T_SUCCESS}${SYM_CHECK} bitcoind is running${RST}"
     fi
@@ -494,7 +667,290 @@ display_detection_results() {
     echo ""
     echo -e "${T_DIM}Full CLI command:${RST}"
     echo -e "  ${BWHITE}$(get_cli_command)${RST}"
+    echo ""
 }
 
-# Export for other scripts
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN DETECTION FLOW
+# ═══════════════════════════════════════════════════════════════════════════════
+
+run_detection() {
+    print_header "Bitcoin Core Detection"
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 1: Check cache
+    # ─────────────────────────────────────────────────────────────────────────
+    print_section "Step 1: Checking Cached Configuration"
+
+    if load_cache; then
+        display_cached_config
+
+        echo -e "${T_WARN}?${RST} Is this configuration correct?"
+        echo ""
+        echo -e "  ${T_INFO}1)${RST} Yes, use this configuration"
+        echo -e "  ${T_INFO}2)${RST} No, run auto-detection"
+        echo -e "  ${T_INFO}3)${RST} No, enter settings manually"
+        echo ""
+
+        local choice
+        echo -en "${T_DIM}Choice [1-3]:${RST} "
+        read -r choice
+
+        case "$choice" in
+            1)
+                msg_ok "Using cached configuration"
+                # Still need to get version and test
+                detect_bitcoin_cli
+                find_cookie
+                if [[ -n "$WCURGUI_CONF" ]]; then
+                    parse_conf_file "$WCURGUI_CONF"
+                fi
+                print_section_end
+                # Skip to RPC test
+                goto_rpc_test=1
+                ;;
+            2)
+                msg_info "Running auto-detection..."
+                # Clear cached values
+                WCURGUI_CLI_PATH=""
+                WCURGUI_DATADIR=""
+                WCURGUI_CONF=""
+                print_section_end
+                ;;
+            3)
+                msg_info "Manual configuration..."
+                WCURGUI_CLI_PATH=""
+                WCURGUI_DATADIR=""
+                WCURGUI_CONF=""
+                print_section_end
+                goto_manual=1
+                ;;
+            *)
+                msg_info "Running auto-detection..."
+                WCURGUI_CLI_PATH=""
+                WCURGUI_DATADIR=""
+                WCURGUI_CONF=""
+                print_section_end
+                ;;
+        esac
+    else
+        msg_info "No cached configuration found"
+        print_section_end
+    fi
+
+    # Skip detection if using cache
+    if [[ "${goto_rpc_test:-0}" -eq 1 ]]; then
+        # Jump to RPC test
+        :
+    elif [[ "${goto_manual:-0}" -eq 1 ]]; then
+        # Manual configuration flow
+        print_section "Manual Configuration"
+
+        # Manual conf entry
+        while true; do
+            manual_enter_conf
+            local result=$?
+            [[ $result -eq 0 ]] && break
+            [[ $result -eq 2 ]] && break  # Go back (but nowhere to go)
+        done
+
+        # Manual datadir if not found
+        if [[ -z "$WCURGUI_DATADIR" ]]; then
+            while true; do
+                manual_enter_datadir
+                local result=$?
+                [[ $result -eq 0 ]] && break
+                [[ $result -eq 2 ]] && break
+            done
+        fi
+
+        detect_bitcoin_cli
+        print_section_end
+    else
+        # ─────────────────────────────────────────────────────────────────────
+        # STEP 2: Check running process
+        # ─────────────────────────────────────────────────────────────────────
+        print_section "Step 2: Checking Running Processes"
+
+        start_spinner "Scanning for bitcoind process"
+        if detect_running_process; then
+            stop_spinner 0 "Found running bitcoind (PID: $(pgrep bitcoind | head -1))"
+            [[ -n "$WCURGUI_DATADIR" ]] && msg_ok "Extracted datadir: $WCURGUI_DATADIR"
+            [[ -n "$WCURGUI_CONF" ]] && msg_ok "Extracted conf: $WCURGUI_CONF"
+        else
+            stop_spinner 0 "bitcoind not running"
+
+            # Check systemd
+            msg_info "Checking systemd services..."
+            if detect_systemd_service; then
+                msg_ok "Found configuration from systemd service"
+                [[ -n "$WCURGUI_DATADIR" ]] && msg_ok "Datadir: $WCURGUI_DATADIR"
+                [[ -n "$WCURGUI_CONF" ]] && msg_ok "Conf: $WCURGUI_CONF"
+            else
+                msg_info "No systemd bitcoin service found"
+            fi
+        fi
+        print_section_end
+
+        # ─────────────────────────────────────────────────────────────────────
+        # STEP 3: Find config file
+        # ─────────────────────────────────────────────────────────────────────
+        print_section "Step 3: Locating Config File"
+
+        start_spinner "Searching common locations"
+        if find_conf_file; then
+            stop_spinner 0 "Found: $WCURGUI_CONF"
+        else
+            stop_spinner 1 "Config file not found in common locations"
+
+            echo ""
+            echo -e "${T_WARN}?${RST} How would you like to proceed?"
+            echo ""
+            echo -e "  ${T_INFO}1)${RST} Search entire system ${T_DIM}(may take a LONG time)${RST}"
+            echo -e "  ${T_INFO}2)${RST} Enter path manually"
+            echo -e "  ${T_INFO}3)${RST} Skip ${T_DIM}(continue without config file)${RST}"
+            echo ""
+
+            local choice
+            echo -en "${T_DIM}Choice [1-3]:${RST} "
+            read -r choice
+
+            case "$choice" in
+                1)
+                    search_conf_file
+                    ;;
+                2)
+                    while true; do
+                        manual_enter_conf
+                        local result=$?
+                        [[ $result -eq 0 ]] && break
+                        [[ $result -eq 2 ]] && break
+                    done
+                    ;;
+                3)
+                    msg_info "Skipping config file"
+                    ;;
+            esac
+        fi
+
+        # Parse config if we have it
+        if [[ -n "$WCURGUI_CONF" && -f "$WCURGUI_CONF" ]]; then
+            msg_info "Parsing config file..."
+            parse_conf_file "$WCURGUI_CONF"
+            [[ -n "$WCURGUI_DATADIR" ]] && msg_ok "Found datadir in config: $WCURGUI_DATADIR"
+        fi
+        print_section_end
+
+        # ─────────────────────────────────────────────────────────────────────
+        # STEP 4: Find data directory
+        # ─────────────────────────────────────────────────────────────────────
+        print_section "Step 4: Locating Data Directory"
+
+        if [[ -n "$WCURGUI_DATADIR" ]] && validate_datadir "$WCURGUI_DATADIR"; then
+            msg_ok "Already found: $WCURGUI_DATADIR"
+        else
+            start_spinner "Searching common locations"
+            if find_datadir; then
+                stop_spinner 0 "Found: $WCURGUI_DATADIR"
+            else
+                stop_spinner 1 "Data directory not found in common locations"
+
+                echo ""
+                echo -e "${T_WARN}?${RST} How would you like to proceed?"
+                echo ""
+                echo -e "  ${T_INFO}1)${RST} Search entire system for blockchain data ${T_DIM}(VERY slow!)${RST}"
+                echo -e "  ${T_INFO}2)${RST} Enter path manually"
+                echo -e "  ${T_INFO}3)${RST} Skip ${T_DIM}(continue without datadir)${RST}"
+                echo ""
+
+                local choice
+                echo -en "${T_DIM}Choice [1-3]:${RST} "
+                read -r choice
+
+                case "$choice" in
+                    1)
+                        search_datadir
+                        ;;
+                    2)
+                        while true; do
+                            manual_enter_datadir
+                            local result=$?
+                            [[ $result -eq 0 ]] && break
+                            [[ $result -eq 2 ]] && break
+                        done
+                        ;;
+                    3)
+                        msg_info "Skipping data directory"
+                        ;;
+                esac
+            fi
+        fi
+        print_section_end
+
+        # ─────────────────────────────────────────────────────────────────────
+        # STEP 5: Find bitcoin-cli
+        # ─────────────────────────────────────────────────────────────────────
+        print_section "Step 5: Testing bitcoin-cli"
+
+        start_spinner "Checking bitcoin-cli"
+        if detect_bitcoin_cli; then
+            stop_spinner 0 "Found: $WCURGUI_CLI_PATH ($WCURGUI_VERSION)"
+        else
+            stop_spinner 1 "bitcoin-cli not found"
+            msg_err "Bitcoin Core does not appear to be installed"
+            print_section_end
+            return 1
+        fi
+        print_section_end
+    fi
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 6: Find cookie auth
+    # ─────────────────────────────────────────────────────────────────────────
+    print_section "Step 6: Checking Authentication"
+
+    find_cookie
+    if [[ -n "$WCURGUI_COOKIE_PATH" && -f "$WCURGUI_COOKIE_PATH" ]]; then
+        msg_ok "Cookie auth: $WCURGUI_COOKIE_PATH"
+    elif [[ -n "$WCURGUI_RPC_USER" ]]; then
+        msg_ok "User/password auth configured"
+    else
+        msg_info "Using default authentication"
+    fi
+    print_section_end
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 7: Test RPC connection
+    # ─────────────────────────────────────────────────────────────────────────
+    print_section "Step 7: Testing RPC Connection"
+
+    echo ""
+    echo -e "${T_DIM}Testing command: $(get_cli_command) getblockchaininfo${RST}"
+    echo ""
+
+    start_spinner "Connecting to Bitcoin Core"
+    if test_rpc_connection; then
+        stop_spinner 0 ""
+        echo ""
+        echo -e "  ${T_SUCCESS}${BOLD}╔════════════════════════════════════════╗${RST}"
+        echo -e "  ${T_SUCCESS}${BOLD}║   bitcoin-cli TEST SUCCESSFUL!         ║${RST}"
+        echo -e "  ${T_SUCCESS}${BOLD}╚════════════════════════════════════════╝${RST}"
+        echo ""
+    else
+        stop_spinner 1 "RPC connection failed"
+        msg_warn "Could not connect to Bitcoin Core RPC"
+        msg_info "bitcoind may not be running, or auth settings may be incorrect"
+    fi
+    print_section_end
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Save and display results
+    # ─────────────────────────────────────────────────────────────────────────
+    save_cache
+    display_detection_results
+
+    return 0
+}
+
+# Export functions
 export -f get_cli_command
