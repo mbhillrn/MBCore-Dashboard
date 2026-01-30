@@ -367,7 +367,7 @@ run_python_check() {
     fi
 
     echo ""
-    echo -e "Checking your python..."
+    echo -e "${T_DIM}Checking your python...${RST}"
 
     # Check if venv exists
     if ! venv_exists; then
@@ -417,13 +417,13 @@ run_python_check() {
 
     # If nothing missing, we're good - show success message
     if [[ $need_terminal -eq 0 && $need_web -eq 0 ]]; then
-        msg_ok "Nice package, it has loaded perfectly into my virtual environment ;)"
+        msg_ok "Nice package, it slipped right into the virtual environment"
         for item in "${present_terminal[@]}"; do
             IFS='|' read -r pkg desc <<< "$item"
             msg_bullet "${pkg} ${T_DIM}(${desc})${RST}"
         done
         echo ""
-        echo -e "Checking dashboard site necessities..."
+        echo -e "${T_DIM}Checking dashboard site necessities...${RST}"
         for item in "${present_web[@]}"; do
             IFS='|' read -r pkg desc <<< "$item"
             msg_ok "${pkg} ${T_DIM}(${desc})${RST}"
@@ -442,7 +442,7 @@ run_python_check() {
     fi
 
     echo ""
-    echo -e "Checking dashboard site necessities:"
+    echo -e "${T_DIM}Checking dashboard site necessities:${RST}"
     if [[ $need_web -eq 1 ]]; then
         msg_warn "Missing:"
         for item in "${missing_web[@]}"; do

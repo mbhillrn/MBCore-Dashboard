@@ -45,11 +45,11 @@ GEO_API_URL = "http://ip-api.com/json"
 GEO_API_FIELDS = "status,country,countryCode,region,regionName,city,district,lat,lon,isp,as,hosting,query"
 RECENT_WINDOW = 20     # Seconds for recent changes
 
-# Fixed port for web dashboard
+# Fixed port for web dashboard (fallback to random if taken)
 WEB_PORT = 58333
 
 # Fixed username
-WEB_USERNAME = "mbtc"
+WEB_USERNAME = "admin"
 
 # Paths
 SCRIPT_DIR = Path(__file__).parent
@@ -657,29 +657,31 @@ async def api_stats(auth: bool = Depends(verify_password)):
     peers = get_peer_info()
     peer_count = len(peers)
 
-    # Count by network type directly from peer data
-    network_counts = {'ipv4': 0, 'ipv6': 0, 'onion': 0, 'i2p': 0, 'cjdns': 0}
+    # Count by network type with in/out breakdown
+    network_counts = {
+        'ipv4': {'in': 0, 'out': 0},
+        'ipv6': {'in': 0, 'out': 0},
+        'onion': {'in': 0, 'out': 0},
+        'i2p': {'in': 0, 'out': 0},
+        'cjdns': {'in': 0, 'out': 0}
+    }
     for peer in peers:
         network = peer.get('network', 'ipv4')
         if network in network_counts:
-            network_counts[network] += 1
+            if peer.get('inbound'):
+                network_counts[network]['in'] += 1
+            else:
+                network_counts[network]['out'] += 1
 
     # Get enabled networks from getnetworkinfo
     enabled_networks = get_enabled_networks()
 
-    with pending_lock:
-        pending = len(pending_lookups)
-
-    db_stats = get_db_stats()
-
     return {
         'connected': peer_count,
-        'pending_geo': pending,
-        'in_geo_db': db_stats.get('geo_ok', 0),
-        'private': db_stats.get('private', 0),
-        **network_counts,
+        'networks': network_counts,
         'enabled_networks': enabled_networks,
         'last_update': datetime.now().strftime('%H:%M:%S'),
+        'refresh_interval': REFRESH_INTERVAL,
     }
 
 
@@ -729,8 +731,10 @@ import asyncio
 C_RESET = "\033[0m"
 C_BOLD = "\033[1m"
 C_DIM = "\033[2m"
+C_RED = "\033[31m"
 C_GREEN = "\033[32m"
 C_YELLOW = "\033[33m"
+C_PINK = "\033[35m"
 C_CYAN = "\033[36m"
 C_WHITE = "\033[37m"
 
@@ -739,6 +743,16 @@ def generate_password(length: int = 5) -> str:
     import string
     chars = string.ascii_letters + string.digits
     return ''.join(secrets.choice(chars) for _ in range(length))
+
+
+def find_fallback_port() -> int:
+    """Find a random available port in high range"""
+    import random
+    for _ in range(100):
+        port = random.randint(49152, 65535)
+        if check_port_available(port):
+            return port
+    return 0
 
 
 def main():
@@ -754,15 +768,15 @@ def main():
     # Generate short session password (5 chars)
     SESSION_PASSWORD = generate_password(5)
 
-    # Use fixed port
+    # Use fixed port, fallback to random if taken
     port = WEB_PORT
-
-    # Check if port is available
     if not check_port_available(port):
-        print(f"\n{C_YELLOW}⚠ Warning: Port {port} is already in use{C_RESET}")
-        print(f"  Another instance may be running, or another service is using this port.")
-        print(f"  Please close the other service and try again.")
-        sys.exit(1)
+        print(f"\n{C_YELLOW}⚠ Port {port} is already in use, finding alternative...{C_RESET}")
+        port = find_fallback_port()
+        if port == 0:
+            print(f"{C_RED}Error: Could not find available port{C_RESET}")
+            sys.exit(1)
+        print(f"{C_GREEN}✓ Using port {port}{C_RESET}\n")
 
     # Get local IPs and subnets
     local_ips, subnets = get_local_ips()
@@ -782,22 +796,25 @@ def main():
     subnet = subnets[0] if subnets else "192.168.0.0/16"
 
     # Print access info with colors and formatting
+    line_w = 84
     print("")
-    print(f"{C_CYAN}{'═' * 72}{C_RESET}")
-    print(f"{C_BOLD}{C_WHITE}  MBTC-DASH Web Dashboard{C_RESET}")
-    print(f"{C_CYAN}{'═' * 72}{C_RESET}")
-    print("")
-    print(f"  {C_DIM}User for this session:{C_RESET}        {C_BOLD}{C_GREEN}{WEB_USERNAME}{C_RESET}")
-    print(f"  {C_DIM}Password for this session:{C_RESET}    {C_BOLD}{C_GREEN}{SESSION_PASSWORD}{C_RESET}")
+    print(f"{C_CYAN}{'═' * line_w}{C_RESET}")
+    print(f"  {C_BOLD}{C_WHITE}MBTC-DASH Web Dashboard{C_RESET} {C_YELLOW}(INSTRUCTIONS){C_RESET}")
+    print(f"{C_CYAN}{'═' * line_w}{C_RESET}")
     print("")
     print(f"  {C_BOLD}To enter the dashboard, visit:{C_RESET}")
     print(f"    {C_CYAN}http://{lan_ip}:{port}{C_RESET}        {C_DIM}From anywhere on your network{C_RESET}")
     print(f"    {C_CYAN}http://127.0.0.1:{port}{C_RESET}       {C_DIM}From the local node machine{C_RESET}")
     print("")
-    print(f"{C_CYAN}{'─' * 72}{C_RESET}")
+    print(f"  {C_WHITE}User:{C_RESET}        {C_BOLD}{C_GREEN}{WEB_USERNAME}{C_RESET}")
+    print(f"  {C_WHITE}Password:{C_RESET}    {C_BOLD}{C_GREEN}{SESSION_PASSWORD}{C_RESET}")
+    print("")
+    print(f"  {C_DIM}(Username stays {WEB_USERNAME}. Password is random each session for safety){C_RESET}")
+    print("")
+    print(f"{C_CYAN}{'─' * line_w}{C_RESET}")
     print(f"  {C_BOLD}Troubleshooting:{C_RESET}")
-    print(f"  {C_DIM}If you receive an error or the page refuses to load,{C_RESET}")
-    print(f"  {C_DIM}please ensure that your firewall allows port {port}/tcp{C_RESET}")
+    print(f"  {C_RED}If you receive an error or the page refuses to load,{C_RESET}")
+    print(f"  {C_RED}please ensure that your firewall allows port {port}/tcp{C_RESET}")
     print("")
     print(f"  {C_YELLOW}Examples (Ubuntu/Mint):{C_RESET}")
     print(f"    {C_DIM}Option 1:{C_RESET}  sudo ufw allow {port}/tcp")
@@ -807,9 +824,9 @@ def main():
     print(f"    {C_DIM}Option 1:{C_RESET}  sudo ufw delete allow {port}/tcp")
     print(f"    {C_DIM}Option 2:{C_RESET}  sudo ufw delete allow from {subnet} to any port {port} proto tcp")
     print("")
-    print(f"{C_CYAN}{'─' * 72}{C_RESET}")
-    print(f"  {C_DIM}Press Ctrl+C to stop serving the dashboard{C_RESET}")
-    print(f"{C_CYAN}{'═' * 72}{C_RESET}")
+    print(f"{C_CYAN}{'─' * line_w}{C_RESET}")
+    print(f"  Press {C_PINK}Ctrl+C{C_RESET} to stop serving the dashboard")
+    print(f"{C_CYAN}{'═' * line_w}{C_RESET}")
     print("")
 
     # Run server

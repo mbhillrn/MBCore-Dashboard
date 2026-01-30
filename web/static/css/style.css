@@ -126,6 +126,18 @@ body {
     font-weight: 600;
 }
 
+.stat-timer {
+    margin-left: auto;
+}
+
+.stat-timer .stat-value {
+    color: var(--accent-yellow);
+}
+
+.stat-time .stat-value {
+    color: var(--text-primary);
+}
+
 /* Main Content */
 .main-content {
     display: flex;

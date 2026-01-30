@@ -35,14 +35,6 @@
                 <span class="stat-label">Connected</span>
                 <span class="stat-value" id="stat-connected">-</span>
             </div>
-            <div class="stat">
-                <span class="stat-label">In GEO DB</span>
-                <span class="stat-value" id="stat-geodb">-</span>
-            </div>
-            <div class="stat">
-                <span class="stat-label">Private</span>
-                <span class="stat-value" id="stat-private">-</span>
-            </div>
             <div class="stat stat-network" id="stat-ipv4-wrap" style="display: none;">
                 <span class="stat-label">IPv4</span>
                 <span class="stat-value" id="stat-ipv4">-</span>
@@ -63,9 +55,13 @@
                 <span class="stat-label">CJDNS</span>
                 <span class="stat-value" id="stat-cjdns">-</span>
             </div>
-            <div class="stat">
-                <span class="stat-label">Last Update</span>
-                <span class="stat-value" id="stat-lastupdate">-</span>
+            <div class="stat stat-timer">
+                <span class="stat-label">Next Update</span>
+                <span class="stat-value" id="stat-countdown">10s</span>
+            </div>
+            <div class="stat stat-time">
+                <span class="stat-label">Local Time</span>
+                <span class="stat-value" id="stat-localtime">--:--:--</span>
             </div>
         </div>
 
@@ -92,21 +88,23 @@
                 <table class="peer-table" id="peer-table">
                     <thead>
                         <tr>
-                            <th data-sort="id">ID</th>
-                            <th data-sort="ip">Address</th>
-                            <th data-sort="location">Location</th>
-                            <th data-sort="isp">ISP</th>
-                            <th data-sort="direction">Dir</th>
-                            <th data-sort="ping_ms">Ping</th>
-                            <th data-sort="bytesrecv">Recv</th>
-                            <th data-sort="bytessent">Sent</th>
-                            <th data-sort="conntime_fmt">Conn</th>
+                            <th data-sort="direction">In/Out</th>
+                            <th data-sort="addr">Address</th>
+                            <th data-sort="city">City</th>
+                            <th data-sort="country_code">Country</th>
+                            <th data-sort="conntime">Connected</th>
                             <th data-sort="subver">Version</th>
+                            <th data-sort="connection_type">Type</th>
+                            <th data-sort="ping_ms">Ping</th>
+                            <th data-sort="bytessent">Sent</th>
+                            <th data-sort="bytesrecv">Recv</th>
+                            <th data-sort="isp">ISP</th>
+                            <th data-sort="id">ID</th>
                         </tr>
                     </thead>
                     <tbody id="peer-tbody">
                         <tr class="loading-row">
-                            <td colspan="10">Loading peers...</td>
+                            <td colspan="12">Loading peers...</td>
                         </tr>
                     </tbody>
                 </table>

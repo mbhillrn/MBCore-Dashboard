@@ -165,22 +165,21 @@ async function fetchStats() {
 
         const stats = await response.json();
         const enabled = stats.enabled_networks || ['ipv4'];
+        const networks = stats.networks || {};
 
-        // Basic stats (always shown)
+        // Connected count
         document.getElementById('stat-connected').textContent = stats.connected || 0;
-        document.getElementById('stat-geodb').textContent = stats.in_geo_db || 0;
-        document.getElementById('stat-private').textContent = stats.private || 0;
-        document.getElementById('stat-lastupdate').textContent = stats.last_update || '-';
 
-        // Network stats - only show if enabled
-        const networks = ['ipv4', 'ipv6', 'onion', 'i2p', 'cjdns'];
-        networks.forEach(net => {
+        // Network stats - only show if enabled, with in/out format
+        const networkNames = ['ipv4', 'ipv6', 'onion', 'i2p', 'cjdns'];
+        networkNames.forEach(net => {
             const wrap = document.getElementById(`stat-${net}-wrap`);
             const val = document.getElementById(`stat-${net}`);
             if (wrap && val) {
                 if (enabled.includes(net)) {
                     wrap.style.display = '';
-                    val.textContent = stats[net] || 0;
+                    const netData = networks[net] || {in: 0, out: 0};
+                    val.textContent = `(in:${netData.in}, out:${netData.out})`;
                 } else {
                     wrap.style.display = 'none';
                 }
@@ -307,30 +306,40 @@ function renderPeers() {
     // Build table HTML
     const rows = sortedPeers.map(peer => {
         const networkClass = `network-${peer.network}`;
-        const directionClass = peer.inbound ? 'in' : 'out';
+        const directionClass = peer.direction === 'IN' ? 'in' : 'out';
 
-        // Location class
-        let locationClass = '';
-        if (peer.location === 'PRIVATE LOCATION') {
-            locationClass = 'location-private';
-        } else if (peer.location === 'LOCATION UNAVAILABLE') {
-            locationClass = 'location-unavailable';
-        } else if (peer.location === 'Stalking location...') {
-            locationClass = 'location-pending';
+        // City/region display
+        let cityDisplay = '-';
+        let cityClass = '';
+        let cityTitle = '';
+        if (peer.location_status === 'private') {
+            cityDisplay = 'PRIVATE';
+            cityClass = 'location-private';
+        } else if (peer.location_status === 'unavailable') {
+            cityDisplay = 'UNAVAILABLE';
+            cityClass = 'location-unavailable';
+        } else if (peer.location_status === 'pending') {
+            cityDisplay = 'Stalking...';
+            cityClass = 'location-pending';
+        } else if (peer.city) {
+            cityDisplay = peer.city + (peer.region ? ', ' + peer.region : '');
+            cityTitle = cityDisplay;
         }
 
         return `
             <tr data-id="${peer.id}">
-                <td>${peer.id}</td>
-                <td class="${networkClass}" title="${peer.addr}">${truncate(peer.ip, 22)}</td>
-                <td class="${locationClass}" title="${peer.city ? `${peer.city}, ${peer.region}, ${peer.country}` : ''}">${truncate(peer.location, 20)}</td>
-                <td title="${peer.isp}">${truncate(peer.isp || '-', 16)}</td>
                 <td><span class="direction-badge ${directionClass}">${peer.direction}</span></td>
-                <td>${peer.ping_ms != null ? peer.ping_ms + 'ms' : '-'}</td>
-                <td>${peer.bytesrecv_fmt}</td>
-                <td>${peer.bytessent_fmt}</td>
+                <td class="${networkClass}" title="${peer.addr}">${truncate(peer.addr, 28)}</td>
+                <td class="${cityClass}" title="${cityTitle}">${truncate(cityDisplay, 18)}</td>
+                <td>${peer.country_code || '-'}</td>
                 <td>${peer.conntime_fmt}</td>
-                <td title="${peer.subver}">${truncate(peer.subver, 18)}</td>
+                <td title="${peer.subver}">${truncate(peer.subver, 16)}</td>
+                <td>${peer.connection_type || '-'}</td>
+                <td>${peer.ping_ms != null ? peer.ping_ms + 'ms' : '-'}</td>
+                <td>${peer.bytessent_fmt}</td>
+                <td>${peer.bytesrecv_fmt}</td>
+                <td title="${peer.isp}">${truncate(peer.isp || '-', 14)}</td>
+                <td>${peer.id}</td>
             </tr>
         `;
     }).join('');
@@ -357,7 +366,11 @@ function startCountdown() {
             countdown = REFRESH_INTERVAL / 1000;
         }
         updateCountdownDisplay();
+        updateLocalTime();
     }, 1000);
+
+    // Initialize local time
+    updateLocalTime();
 }
 
 function resetCountdown() {
@@ -366,7 +379,22 @@ function resetCountdown() {
 }
 
 function updateCountdownDisplay() {
+    // Update footer timer
     refreshTimerEl.textContent = `Refreshing in ${countdown}s`;
+    // Update stats bar countdown
+    const statCountdown = document.getElementById('stat-countdown');
+    if (statCountdown) {
+        statCountdown.textContent = `${countdown}s`;
+    }
+}
+
+function updateLocalTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString();
+    const statLocaltime = document.getElementById('stat-localtime');
+    if (statLocaltime) {
+        statLocaltime.textContent = timeStr;
+    }
 }
 
 // Cleanup on page unload
