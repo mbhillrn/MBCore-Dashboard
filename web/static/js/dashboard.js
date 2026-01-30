@@ -7,13 +7,9 @@
 const REFRESH_INTERVAL = 10000; // 10 seconds
 const API_BASE = '';
 
-// Antarctica coords for private locations
+// Antarctica coords for private AND unavailable locations
 const ANTARCTICA_LAT = -82.8628;
 const ANTARCTICA_LON = 135.0000;
-
-// North Pole coords for unavailable locations
-const NORTH_POLE_LAT = 90.0;
-const NORTH_POLE_LON = 0.0;
 
 // State
 let currentPeers = [];
@@ -72,12 +68,14 @@ function updateMap() {
         let lat, lon, color;
 
         if (peer.location_status === 'private') {
+            // Private locations: Antarctica (left side)
             lat = ANTARCTICA_LAT + (Math.random() - 0.5) * 5;
-            lon = ANTARCTICA_LON + (Math.random() - 0.5) * 30;
+            lon = ANTARCTICA_LON - 60 + (Math.random() - 0.5) * 30;
             color = '#d29922'; // yellow
         } else if (peer.location_status === 'unavailable') {
-            lat = NORTH_POLE_LAT - Math.random() * 5;
-            lon = NORTH_POLE_LON + (Math.random() - 0.5) * 180;
+            // Unavailable locations: Antarctica (right side)
+            lat = ANTARCTICA_LAT + (Math.random() - 0.5) * 5;
+            lon = ANTARCTICA_LON + 60 + (Math.random() - 0.5) * 30;
             color = '#6e7681'; // gray
         } else if (peer.lat && peer.lon) {
             lat = peer.lat;
@@ -166,15 +164,28 @@ async function fetchStats() {
         if (!response.ok) throw new Error('Failed to fetch stats');
 
         const stats = await response.json();
+        const enabled = stats.enabled_networks || ['ipv4'];
 
+        // Basic stats (always shown)
         document.getElementById('stat-connected').textContent = stats.connected || 0;
-        document.getElementById('stat-geolocated').textContent = stats.geo_ok || 0;
+        document.getElementById('stat-geodb').textContent = stats.in_geo_db || 0;
         document.getElementById('stat-private').textContent = stats.private || 0;
-        document.getElementById('stat-ipv4').textContent = stats.ipv4 || 0;
-        document.getElementById('stat-ipv6').textContent = stats.ipv6 || 0;
-        document.getElementById('stat-onion').textContent = stats.onion || 0;
-        document.getElementById('stat-i2p').textContent = stats.i2p || 0;
         document.getElementById('stat-lastupdate').textContent = stats.last_update || '-';
+
+        // Network stats - only show if enabled
+        const networks = ['ipv4', 'ipv6', 'onion', 'i2p', 'cjdns'];
+        networks.forEach(net => {
+            const wrap = document.getElementById(`stat-${net}-wrap`);
+            const val = document.getElementById(`stat-${net}`);
+            if (wrap && val) {
+                if (enabled.includes(net)) {
+                    wrap.style.display = '';
+                    val.textContent = stats[net] || 0;
+                } else {
+                    wrap.style.display = 'none';
+                }
+            }
+        });
     } catch (error) {
         console.error('Error fetching stats:', error);
     }

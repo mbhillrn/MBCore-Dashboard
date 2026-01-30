@@ -45,9 +45,11 @@ GEO_API_URL = "http://ip-api.com/json"
 GEO_API_FIELDS = "status,country,countryCode,region,regionName,city,district,lat,lon,isp,as,hosting,query"
 RECENT_WINDOW = 20     # Seconds for recent changes
 
-# Port range for dynamic selection
-PORT_RANGE_START = 49152
-PORT_RANGE_END = 65535
+# Fixed port for web dashboard
+WEB_PORT = 58333
+
+# Fixed username
+WEB_USERNAME = "mbtc"
 
 # Paths
 SCRIPT_DIR = Path(__file__).parent
@@ -295,41 +297,50 @@ def extract_port(addr: str) -> str:
 
 
 def get_local_ips() -> list:
-    """Get all local IP addresses"""
+    """Get all local IP addresses with their subnets"""
     ips = []
+    subnets = []
     try:
-        # Get hostname IPs
-        hostname = socket.gethostname()
-        ips.append(socket.gethostbyname(hostname))
-
-        # Try to get all interfaces
-        import subprocess
+        # Try to get all interfaces with subnet info
         result = subprocess.run(['ip', '-4', 'addr', 'show'], capture_output=True, text=True)
         for line in result.stdout.split('\n'):
             if 'inet ' in line:
-                ip = line.strip().split()[1].split('/')[0]
-                if ip not in ips and not ip.startswith('127.'):
-                    ips.append(ip)
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    ip_cidr = parts[1]  # e.g., "192.168.4.100/24"
+                    ip = ip_cidr.split('/')[0]
+                    if not ip.startswith('127.'):
+                        if ip not in ips:
+                            ips.append(ip)
+                        # Calculate subnet for firewall rules
+                        if '/' in ip_cidr:
+                            prefix = int(ip_cidr.split('/')[1])
+                            # Calculate network address
+                            ip_parts = [int(x) for x in ip.split('.')]
+                            mask = (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF
+                            net_int = (ip_parts[0] << 24 | ip_parts[1] << 16 | ip_parts[2] << 8 | ip_parts[3]) & mask
+                            net_addr = f"{(net_int >> 24) & 0xFF}.{(net_int >> 16) & 0xFF}.{(net_int >> 8) & 0xFF}.{net_int & 0xFF}/{prefix}"
+                            if net_addr not in subnets:
+                                subnets.append(net_addr)
     except:
         pass
 
     if not ips:
         ips.append('127.0.0.1')
-    return ips
+    if not subnets:
+        subnets.append('192.168.0.0/16')  # Fallback
+    return ips, subnets
 
 
-def find_available_port() -> int:
-    """Find an available port in the ephemeral range"""
-    for _ in range(100):
-        port = random.randint(PORT_RANGE_START, PORT_RANGE_END)
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(('', port))
-            sock.close()
-            return port
-        except OSError:
-            continue
-    raise RuntimeError("Could not find available port")
+def check_port_available(port: int) -> bool:
+    """Check if a port is available"""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('', port))
+        sock.close()
+        return True
+    except OSError:
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -345,6 +356,23 @@ def get_peer_info() -> list:
     except:
         pass
     return []
+
+
+def get_enabled_networks() -> list:
+    """Get list of enabled/reachable networks from getnetworkinfo"""
+    enabled = []
+    try:
+        cmd = config.get_cli_command() + ['getnetworkinfo']
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            info = json.loads(result.stdout)
+            for net in info.get('networks', []):
+                if net.get('reachable', False):
+                    enabled.append(net.get('name', ''))
+    except:
+        pass
+    # Return at least ipv4 as default
+    return enabled if enabled else ['ipv4']
 
 
 def refresh_addrman():
@@ -495,11 +523,11 @@ def broadcast_update(event_type: str, data: dict):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def verify_password(credentials: HTTPBasicCredentials = Depends(security)):
-    """Verify the session password"""
-    if credentials.password != SESSION_PASSWORD:
+    """Verify the username and session password"""
+    if credentials.username != WEB_USERNAME or credentials.password != SESSION_PASSWORD:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid password",
+            detail="Invalid credentials",
             headers={"WWW-Authenticate": "Basic"},
         )
     return True
@@ -625,29 +653,32 @@ async def api_changes(auth: bool = Depends(verify_password)):
 @app.get("/api/stats")
 async def api_stats(auth: bool = Depends(verify_password)):
     """Get dashboard statistics"""
-    with peers_lock:
-        peers_snapshot = list(current_peers)
+    # Get fresh peer info from RPC
+    peers = get_peer_info()
+    peer_count = len(peers)
 
-    peer_count = len(peers_snapshot)
-    with pending_lock:
-        pending = len(pending_lookups)
-
-    # Count by network type
+    # Count by network type directly from peer data
     network_counts = {'ipv4': 0, 'ipv6': 0, 'onion': 0, 'i2p': 0, 'cjdns': 0}
-    for peer in peers_snapshot:
-        addr = peer.get('addr', '')
-        network = peer.get('network', get_network_type(addr))
+    for peer in peers:
+        network = peer.get('network', 'ipv4')
         if network in network_counts:
             network_counts[network] += 1
+
+    # Get enabled networks from getnetworkinfo
+    enabled_networks = get_enabled_networks()
+
+    with pending_lock:
+        pending = len(pending_lookups)
 
     db_stats = get_db_stats()
 
     return {
         'connected': peer_count,
         'pending_geo': pending,
-        **db_stats,
+        'in_geo_db': db_stats.get('geo_ok', 0),
+        'private': db_stats.get('private', 0),
         **network_counts,
-        'addrman_size': len(addrman_ips),
+        'enabled_networks': enabled_networks,
         'last_update': datetime.now().strftime('%H:%M:%S'),
     }
 
@@ -694,6 +725,22 @@ if STATIC_DIR.exists():
 
 import asyncio
 
+# ANSI color codes
+C_RESET = "\033[0m"
+C_BOLD = "\033[1m"
+C_DIM = "\033[2m"
+C_GREEN = "\033[32m"
+C_YELLOW = "\033[33m"
+C_CYAN = "\033[36m"
+C_WHITE = "\033[37m"
+
+def generate_password(length: int = 5) -> str:
+    """Generate a short alphanumeric password"""
+    import string
+    chars = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(chars) for _ in range(length))
+
+
 def main():
     global SESSION_PASSWORD
 
@@ -704,14 +751,21 @@ def main():
         print("Error: Configuration not found. Run ./da.sh first to configure.")
         sys.exit(1)
 
-    # Generate session password
-    SESSION_PASSWORD = secrets.token_urlsafe(16)
+    # Generate short session password (5 chars)
+    SESSION_PASSWORD = generate_password(5)
 
-    # Find available port
-    port = find_available_port()
+    # Use fixed port
+    port = WEB_PORT
 
-    # Get local IPs
-    local_ips = get_local_ips()
+    # Check if port is available
+    if not check_port_available(port):
+        print(f"\n{C_YELLOW}⚠ Warning: Port {port} is already in use{C_RESET}")
+        print(f"  Another instance may be running, or another service is using this port.")
+        print(f"  Please close the other service and try again.")
+        sys.exit(1)
+
+    # Get local IPs and subnets
+    local_ips, subnets = get_local_ips()
 
     # Start background threads
     geo_thread = threading.Thread(target=geo_worker, daemon=True)
@@ -723,20 +777,40 @@ def main():
     # Initial data fetch
     refresh_addrman()
 
-    # Print access info
-    print("\n" + "=" * 60)
-    print("  MBTC-DASH Web Dashboard")
-    print("=" * 60)
-    print(f"\n  Password for this session: {SESSION_PASSWORD}")
-    print(f"\n  Access URLs:")
-    print(f"    Local:    http://127.0.0.1:{port}")
-    for ip in local_ips:
-        if ip != '127.0.0.1':
-            print(f"    LAN:      http://{ip}:{port}")
-    print(f"\n  Username: (any)")
-    print(f"  Password: {SESSION_PASSWORD}")
-    print("\n  Press Ctrl+C to stop")
-    print("=" * 60 + "\n")
+    # Get primary LAN IP (first non-localhost)
+    lan_ip = local_ips[0] if local_ips else "127.0.0.1"
+    subnet = subnets[0] if subnets else "192.168.0.0/16"
+
+    # Print access info with colors and formatting
+    print("")
+    print(f"{C_CYAN}{'═' * 72}{C_RESET}")
+    print(f"{C_BOLD}{C_WHITE}  MBTC-DASH Web Dashboard{C_RESET}")
+    print(f"{C_CYAN}{'═' * 72}{C_RESET}")
+    print("")
+    print(f"  {C_DIM}User for this session:{C_RESET}        {C_BOLD}{C_GREEN}{WEB_USERNAME}{C_RESET}")
+    print(f"  {C_DIM}Password for this session:{C_RESET}    {C_BOLD}{C_GREEN}{SESSION_PASSWORD}{C_RESET}")
+    print("")
+    print(f"  {C_BOLD}To enter the dashboard, visit:{C_RESET}")
+    print(f"    {C_CYAN}http://{lan_ip}:{port}{C_RESET}        {C_DIM}From anywhere on your network{C_RESET}")
+    print(f"    {C_CYAN}http://127.0.0.1:{port}{C_RESET}       {C_DIM}From the local node machine{C_RESET}")
+    print("")
+    print(f"{C_CYAN}{'─' * 72}{C_RESET}")
+    print(f"  {C_BOLD}Troubleshooting:{C_RESET}")
+    print(f"  {C_DIM}If you receive an error or the page refuses to load,{C_RESET}")
+    print(f"  {C_DIM}please ensure that your firewall allows port {port}/tcp{C_RESET}")
+    print("")
+    print(f"  {C_YELLOW}Examples (Ubuntu/Mint):{C_RESET}")
+    print(f"    {C_DIM}Option 1:{C_RESET}  sudo ufw allow {port}/tcp")
+    print(f"    {C_DIM}Option 2:{C_RESET}  sudo ufw allow from {subnet} to any port {port} proto tcp")
+    print("")
+    print(f"  {C_YELLOW}To remove later:{C_RESET}")
+    print(f"    {C_DIM}Option 1:{C_RESET}  sudo ufw delete allow {port}/tcp")
+    print(f"    {C_DIM}Option 2:{C_RESET}  sudo ufw delete allow from {subnet} to any port {port} proto tcp")
+    print("")
+    print(f"{C_CYAN}{'─' * 72}{C_RESET}")
+    print(f"  {C_DIM}Press Ctrl+C to stop serving the dashboard{C_RESET}")
+    print(f"{C_CYAN}{'═' * 72}{C_RESET}")
+    print("")
 
     # Run server
     try:

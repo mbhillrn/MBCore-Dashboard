@@ -367,12 +367,10 @@ run_python_check() {
     fi
 
     echo ""
-    echo -e "${T_DIM}Python packages (venv):${RST}"
+    echo -e "Checking your python..."
 
     # Check if venv exists
-    if venv_exists; then
-        msg_ok "Virtual environment ${T_DIM}(./venv/)${RST}"
-    else
+    if ! venv_exists; then
         msg_warn "No virtual environment found"
     fi
 
@@ -402,16 +400,6 @@ run_python_check() {
         fi
     done
 
-    # Show present packages
-    for item in "${present_terminal[@]}"; do
-        IFS='|' read -r pkg desc <<< "$item"
-        msg_ok "${pkg} ${T_DIM}(${desc})${RST}"
-    done
-    for item in "${present_web[@]}"; do
-        IFS='|' read -r pkg desc <<< "$item"
-        msg_ok "${pkg} ${T_DIM}(${desc})${RST}"
-    done
-
     # Determine what's missing
     local need_venv=0
     local need_terminal=0
@@ -427,24 +415,36 @@ run_python_check() {
         need_web=1
     fi
 
-    # If nothing missing, we're good
+    # If nothing missing, we're good - show success message
     if [[ $need_terminal -eq 0 && $need_web -eq 0 ]]; then
+        msg_ok "Nice package, it has loaded perfectly into my virtual environment ;)"
+        for item in "${present_terminal[@]}"; do
+            IFS='|' read -r pkg desc <<< "$item"
+            msg_bullet "${pkg} ${T_DIM}(${desc})${RST}"
+        done
+        echo ""
+        echo -e "Checking dashboard site necessities..."
+        for item in "${present_web[@]}"; do
+            IFS='|' read -r pkg desc <<< "$item"
+            msg_ok "${pkg} ${T_DIM}(${desc})${RST}"
+        done
         PYTHON_MODE="full"
         return 0
     fi
 
     # Show what's missing
-    echo ""
     if [[ $need_terminal -eq 1 ]]; then
-        msg_warn "Missing terminal packages (required):"
+        msg_warn "No package found... (required):"
         for item in "${missing_terminal[@]}"; do
             IFS='|' read -r pkg desc <<< "$item"
             msg_bullet "${pkg} ${T_DIM}(${desc})${RST}"
         done
     fi
 
+    echo ""
+    echo -e "Checking dashboard site necessities:"
     if [[ $need_web -eq 1 ]]; then
-        msg_warn "Missing web dashboard packages:"
+        msg_warn "Missing:"
         for item in "${missing_web[@]}"; do
             IFS='|' read -r pkg desc <<< "$item"
             msg_bullet "${pkg} ${T_DIM}(${desc})${RST}"
@@ -457,6 +457,9 @@ run_python_check() {
     if prompt_yn "Setup virtual environment and install packages?"; then
         # Create venv if needed
         if [[ $need_venv -eq 1 ]]; then
+            echo ""
+            echo -e "Creating virtual environment..."
+            echo -e "${T_DIM}──────────────────────────────────${RST}"
             if ! create_venv; then
                 msg_err "Cannot proceed without virtual environment"
                 PYTHON_MODE="none"
@@ -465,14 +468,17 @@ run_python_check() {
 
             # Upgrade pip
             msg_info "Upgrading pip..."
-            "$VENV_DIR/bin/pip" install --upgrade pip --quiet 2>/dev/null
+            if "$VENV_DIR/bin/pip" install --upgrade pip --quiet 2>/dev/null; then
+                msg_ok "Pip upgraded"
+            fi
         fi
 
         # Install terminal packages first (required)
         local terminal_failed=0
         if [[ $need_terminal -eq 1 ]]; then
             echo ""
-            msg_info "Installing terminal packages..."
+            echo -e "Installing terminal packages..."
+            echo -e "${T_DIM}───────────────────────────────────${RST}"
             for item in "${missing_terminal[@]}"; do
                 IFS='|' read -r pkg desc <<< "$item"
                 if ! install_venv_pkg "$pkg"; then
@@ -492,7 +498,8 @@ run_python_check() {
         local web_failed=0
         if [[ $need_web -eq 1 ]]; then
             echo ""
-            msg_info "Installing web dashboard packages..."
+            echo -e "Installing web dashboard packages..."
+            echo -e "${T_DIM}────────────────────────────────────${RST}"
             for item in "${missing_web[@]}"; do
                 IFS='|' read -r pkg desc <<< "$item"
                 if ! install_venv_pkg "$pkg"; then
@@ -510,7 +517,8 @@ run_python_check() {
             return 0
         fi
 
-        msg_ok "All packages installed successfully"
+        echo ""
+        echo -e "${T_SUCCESS}** All packages installed successfully!! **${RST}"
         PYTHON_MODE="full"
         return 0
     else
