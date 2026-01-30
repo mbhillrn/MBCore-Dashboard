@@ -536,11 +536,44 @@ async function fetchStats() {
             }
         }
 
+        // Update protocol status in header
+        updateProtocolStatus(enabled);
+
         // Update map status indicator
         updateMapStatus(stats.geo_pending || 0);
     } catch (error) {
         console.error('Error fetching stats:', error);
         updateMapStatus(-1); // Error state
+    }
+}
+
+// Update protocol status indicator in header
+function updateProtocolStatus(enabled) {
+    const enabledEl = document.getElementById('protocols-enabled');
+    const disabledEl = document.getElementById('protocols-disabled');
+    if (!enabledEl || !disabledEl) return;
+
+    const allProtocols = ['ipv4', 'ipv6', 'onion', 'i2p', 'cjdns'];
+    const protoLabels = { 'ipv4': 'IPv4', 'ipv6': 'IPv6', 'onion': 'Tor', 'i2p': 'I2P', 'cjdns': 'CJDNS' };
+
+    // Build enabled list
+    const enabledList = allProtocols
+        .filter(p => enabled.includes(p))
+        .map(p => `<span class="proto-${p}">${protoLabels[p]}</span>`)
+        .join(' ');
+
+    // Build disabled list
+    const disabledProtos = allProtocols.filter(p => !enabled.includes(p));
+
+    enabledEl.innerHTML = enabledList || '<span style="color: var(--text-dim)">None</span>';
+
+    if (disabledProtos.length === 0) {
+        disabledEl.innerHTML = '<span class="proto-all-configured">All Protocols Configured</span>';
+    } else {
+        const disabledList = disabledProtos
+            .map(p => `<span class="proto-${p}">${protoLabels[p]}</span>`)
+            .join(' ');
+        disabledEl.innerHTML = disabledList;
     }
 }
 

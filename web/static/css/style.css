@@ -90,12 +90,51 @@ body {
 
 .header-info {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    padding: 8px 12px;
     background: var(--bg-tertiary);
     border-radius: 4px;
 }
+
+.header-info > span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Protocol Status */
+.protocol-status {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    text-align: right;
+}
+
+.protocol-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.protocol-label {
+    color: var(--text-dim);
+}
+
+.protocol-list {
+    display: flex;
+    gap: 6px;
+}
+
+.protocol-list .proto-ipv4 { color: var(--net-ipv4); }
+.protocol-list .proto-ipv6 { color: var(--net-ipv6); }
+.protocol-list .proto-onion { color: var(--net-onion); }
+.protocol-list .proto-i2p { color: var(--net-i2p); }
+.protocol-list .proto-cjdns { color: var(--net-cjdns); }
+.protocol-list .proto-all-configured { color: var(--accent-green); }
 
 .status-indicator {
     width: 8px;
