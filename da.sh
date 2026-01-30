@@ -17,6 +17,10 @@ source "$MBTC_DIR/lib/config.sh"
 
 VERSION="0.2.2"
 
+# Venv paths
+VENV_DIR="$MBTC_DIR/venv"
+VENV_PYTHON="$VENV_DIR/bin/python3"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CTRL+C HANDLING
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -137,8 +141,18 @@ run_peer_list() {
         return
     fi
 
-    # Run Python peer list
-    python3 "$MBTC_DIR/scripts/peerlist.py"
+    # Check if venv exists and terminal packages are available
+    if ! is_terminal_available; then
+        msg_err "Python packages not installed"
+        msg_info "Please run the prerequisites check from the main menu"
+        echo ""
+        echo -en "${T_DIM}Press Enter to continue...${RST}"
+        read -r
+        return
+    fi
+
+    # Run Python peer list using venv
+    "$VENV_PYTHON" "$MBTC_DIR/scripts/peerlist.py"
 }
 
 run_web_dashboard() {
@@ -150,45 +164,19 @@ run_web_dashboard() {
         return
     fi
 
-    # Check for required packages
-    local missing_pkgs=""
-    if ! python3 -c "import fastapi" 2>/dev/null; then
-        missing_pkgs="fastapi "
-    fi
-    if ! python3 -c "import uvicorn" 2>/dev/null; then
-        missing_pkgs+="uvicorn "
-    fi
-    if ! python3 -c "import jinja2" 2>/dev/null; then
-        missing_pkgs+="jinja2 "
-    fi
-    if ! python3 -c "import sse_starlette" 2>/dev/null; then
-        missing_pkgs+="sse-starlette "
+    # Check if web packages are available
+    if ! is_web_available; then
+        msg_err "Web dashboard packages not installed"
+        msg_info "Please run the prerequisites check to install web packages"
+        echo ""
+        echo -en "${T_DIM}Press Enter to continue...${RST}"
+        read -r
+        return
     fi
 
-    if [[ -n "$missing_pkgs" ]]; then
-        msg_err "Missing Python packages for web dashboard: $missing_pkgs"
-        echo ""
-        echo -e "${T_INFO}Install with:${RST} pip3 install $missing_pkgs"
-        echo ""
-        if prompt_yn "Attempt to install now?"; then
-            pip3 install --user $missing_pkgs
-            if [[ $? -ne 0 ]]; then
-                msg_err "Failed to install packages"
-                echo -en "${T_DIM}Press Enter to continue...${RST}"
-                read -r
-                return
-            fi
-            msg_ok "Packages installed"
-        else
-            echo -en "${T_DIM}Press Enter to continue...${RST}"
-            read -r
-            return
-        fi
-    fi
-
-    # Run web server
+    # Run web server using venv
     clear
-    python3 "$MBTC_DIR/web/server.py"
+    "$VENV_PYTHON" "$MBTC_DIR/web/server.py"
 }
 
 run_detection() {

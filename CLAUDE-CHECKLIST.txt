@@ -25,6 +25,16 @@ Web Port: Dynamic per run in 49152-65535 range, auto-detect conflicts
 Framework: FastAPI (not Flask)
 Auth: Single password prompt per startup for remote/LAN access
 
+Addrman Cache: SESSION-ONLY (in memory, refreshed every 60 seconds)
+  - Uses `getnodeaddresses 0` to get all known addresses
+  - NOT persisted to disk - resets each time program starts
+  - This is intentional - addrman data changes frequently
+
+Python Dependencies: Installed in local ./venv/ folder
+  - Terminal packages: rich, requests
+  - Web packages: fastapi, uvicorn, jinja2, sse-starlette
+  - Easy uninstall: just delete ./venv/ folder
+
 ================================================================================
 CRITICAL REQUIREMENTS (FROM PROJ-PLAN)
 ================================================================================
@@ -189,5 +199,9 @@ COMPLETED ITEMS
 [x] Web dashboard - Dynamic port selection (49152-65535) (2026-01-30)
 [x] Web dashboard - Session password auth (2026-01-30)
 [x] Prerequisites updated with FastAPI/uvicorn/jinja2/sse-starlette (2026-01-30)
+[x] Python dependencies now use local ./venv/ folder (2026-01-30)
+[x] Fixed prereqs flow - proper handling when install fails (2026-01-30)
+[x] Added terminal-only fallback option (2026-01-30)
+[x] Documented addrman is session-only (in memory) (2026-01-30)
 
 ================================================================================
