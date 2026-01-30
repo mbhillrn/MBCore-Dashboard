@@ -69,10 +69,11 @@ show_banner() {
 ╚═╝     ╚═╝╚═════╝  ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
 EOF
     echo -e "${RST}"
-    echo -e "  ${T_WHITE}Dashboard${RST}  ${T_DIM}v${VERSION}${RST}"
-    echo -e "  ${T_DIM}Peer info, map, and tools for Bitcoin Core${RST}"
-    echo -e "  ${T_DIM}Created by mbhillrn with claude's help${RST}"
+    echo -e "  ${T_WHITE}Dashboard${RST}  ${T_DIM}v${VERSION}${RST} ${T_WHITE}(Bitcoin Core peer info/map/tools)${RST}"
+    echo -e "  ────────────────────────────────────────────────────"
+    echo -e "  ${T_DIM}Created by mbhillrn with Claude's help${RST}"
     echo -e "  ${T_DIM}MIT License - Free to use, modify, and distribute${RST}"
+    echo -e "  ${T_DIM}Support (btc): bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5${RST}"
     echo ""
 }
 
