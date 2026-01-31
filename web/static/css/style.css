@@ -425,9 +425,9 @@ body {
 
 .peer-table {
     table-layout: fixed;
-    min-width: 100%;
     border-collapse: collapse;
     font-size: 11px;
+    /* Width is sum of column widths - no min-width so columns can shrink */
 }
 
 .peer-table thead {

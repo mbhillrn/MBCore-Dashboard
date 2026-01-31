@@ -145,6 +145,7 @@ function setupRestoreDefaults() {
             if (table) {
                 table.querySelectorAll('th[data-col]').forEach(th => {
                     th.style.width = '';
+                    th.style.maxWidth = '';
                 });
             }
             setInitialColumnWidths();
@@ -192,8 +193,9 @@ function setupColumnResize() {
         if (!isResizing || !currentTh) return;
         const deltaX = e.clientX - startX;
         const newWidth = Math.max(40, startWidth + deltaX);
+        // Set both width and max-width to enforce the size
         currentTh.style.width = newWidth + 'px';
-        // Don't set minWidth - allow columns to be shrunk later
+        currentTh.style.maxWidth = newWidth + 'px';
     });
 
     document.addEventListener('mouseup', () => {
@@ -629,6 +631,7 @@ function loadColumnWidths() {
                 table.querySelectorAll('th[data-col]').forEach(th => {
                     if (widths[th.dataset.col]) {
                         th.style.width = widths[th.dataset.col];
+                        th.style.maxWidth = widths[th.dataset.col];
                     }
                 });
             }
@@ -677,6 +680,7 @@ function setInitialColumnWidths() {
         // Only set if no width already set
         if (!th.style.width && defaultWidths[col]) {
             th.style.width = defaultWidths[col] + 'px';
+            th.style.maxWidth = defaultWidths[col] + 'px';
         }
     });
 }
