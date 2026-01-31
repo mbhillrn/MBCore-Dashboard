@@ -229,7 +229,10 @@ body {
 
 .resizable-panel {
     /* Custom resize handles in JS - no CSS resize needed */
-    overflow: visible;
+    /* overflow: visible allows resize handle to show, but we clip content */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .peer-panel {
@@ -321,6 +324,41 @@ body {
     color: var(--text-primary);
 }
 
+/* Restore Defaults Button */
+.restore-defaults-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 10px;
+    transition: all 0.2s;
+    margin-right: 8px;
+}
+
+.restore-defaults-btn:hover {
+    background: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Network Filter Buttons */
+.network-filter-btn {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+
+.network-filter-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.network-filter-btn.active {
+    background: rgba(88, 166, 255, 0.2);
+    font-weight: 600;
+}
+
 /* Resize handle - spans full width of panel bottom */
 .resize-handle {
     position: absolute;
@@ -349,6 +387,31 @@ body {
 #changes-table-container {
     flex: 1;
     overflow: auto;
+    max-width: 100%;
+}
+
+/* Custom scrollbar styling */
+.table-container::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 5px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 5px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+}
+
+.table-container::-webkit-scrollbar-corner {
+    background: var(--bg-secondary);
 }
 
 .peer-table {
@@ -415,7 +478,7 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 150px;
+    /* No max-width - width determined by column header width set via resize */
 }
 
 .peer-table tbody tr:hover {
@@ -429,6 +492,15 @@ body {
 }
 
 /* Direction badge - KEEP EXACTLY AS IS */
+/* Center direction column */
+td[data-col="direction"] {
+    text-align: center;
+}
+
+th[data-col="direction"] {
+    text-align: center;
+}
+
 .direction-badge {
     display: inline-block;
     padding: 2px 6px;

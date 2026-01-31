@@ -561,9 +561,10 @@ def refresh_worker():
                     set_cached_geo_private(ip)
 
         # Handle disconnected peers - NOW WITH IP!
+        # Use pop() to remove the entry after reading (prevents memory leak)
         for pid in previous_ids - current_ids:
             with peer_ip_map_lock:
-                peer_info = peer_ip_map.get(pid, {})
+                peer_info = peer_ip_map.pop(pid, {})
             ip = peer_info.get('ip', f'peer#{pid}')
             port = peer_info.get('port', '')
             network = peer_info.get('network', '?')
@@ -626,6 +627,21 @@ def format_bytes(b: int) -> str:
         return f"{b / (1024 * 1024):.1f}MB"
     else:
         return f"{b / (1024 * 1024 * 1024):.2f}GB"
+
+
+# Connection type abbreviations
+CONNECTION_TYPE_ABBREV = {
+    'outbound-full-relay': 'OFR',
+    'block-relay-only': 'BLO',
+    'inbound': 'INB',
+    'manual': 'MAN',
+    'addr-fetch': 'FET',
+    'feeler': 'FEL',
+}
+
+def abbrev_connection_type(conn_type: str) -> str:
+    """Abbreviate connection type for compact display"""
+    return CONNECTION_TYPE_ABBREV.get(conn_type, conn_type[:3].upper() if conn_type else '-')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -708,6 +724,7 @@ async def api_peers(auth: bool = Depends(verify_password)):
             'conntime_fmt': conn_fmt,
             'version': peer.get('version', 0),
             'connection_type': peer.get('connection_type', ''),
+            'connection_type_abbrev': abbrev_connection_type(peer.get('connection_type', '')),
             'services': services,
             'services_abbrev': services_abbrev,
 
@@ -785,13 +802,13 @@ async def api_events(request: Request):
         # Send initial connected message
         yield {"event": "message", "data": json.dumps({"type": "connected"})}
 
-        while True:
+        while not stop_flag.is_set():
             # Check if client disconnected
             if await request.is_disconnected():
                 break
 
-            # Wait for update event or timeout for keepalive
-            if sse_update_event.wait(timeout=15):
+            # Wait for update event or timeout for keepalive (short timeout for fast shutdown)
+            if sse_update_event.wait(timeout=2):
                 sse_update_event.clear()
                 yield {"event": "message", "data": json.dumps({"type": last_update_type})}
             else:
@@ -817,6 +834,7 @@ if STATIC_DIR.exists():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 import asyncio
+import signal
 
 # ANSI color codes
 C_RESET = "\033[0m"
@@ -898,7 +916,7 @@ def main():
     print(f"  {C_BOLD}{C_BLUE}██║╚██╔╝██║██╔══██╗██║     ██║   ██║██╔══██╗██╔══╝  {C_RESET}")
     print(f"  {C_BOLD}{C_BLUE}██║ ╚═╝ ██║██████╔╝╚██████╗╚██████╔╝██║  ██║███████╗{C_RESET}")
     print(f"  {C_BOLD}{C_BLUE}╚═╝     ╚═╝╚═════╝  ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝{C_RESET}")
-    print(f"  {C_BOLD}{C_WHITE}Dashboard{C_RESET}  {C_DIM}v1.0.0{C_RESET} {C_WHITE}(Bitcoin Core peer info/map/tools){C_RESET}")
+    print(f"  {C_BOLD}{C_WHITE}Dashboard{C_RESET}  {C_DIM}v1.1.0{C_RESET} {C_WHITE}(Bitcoin Core peer info/map/tools){C_RESET}")
     print(f"  {'─' * logo_w}")
     print(f"  {C_DIM}Created by mbhillrn with Claude's help{C_RESET}")
     print(f"  {C_DIM}MIT License - Free to use, modify, and distribute{C_RESET}")
@@ -931,21 +949,37 @@ def main():
     print(f"    {C_DIM}Option 2:{C_RESET}  sudo ufw delete allow {port}/tcp")
     print("")
     print(f"{C_CYAN}{'─' * line_w}{C_RESET}")
-    print(f"  Press {C_PINK}Ctrl+C{C_RESET} repeatedly to stop serving the dashboard")
-    print(f"  {C_DIM}(Stopping may take 10-20 seconds){C_RESET}")
+    print(f"  Press {C_PINK}Ctrl+C{C_RESET} to stop the dashboard (press twice to force)")
     print(f"{C_CYAN}{'─' * line_w}{C_RESET}")
     print(f"  {C_YELLOW}Support (btc):{C_RESET} {C_GREEN}bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5{C_RESET}")
     print(f"{C_CYAN}{'═' * line_w}{C_RESET}")
     print("")
+
+    # Signal handler for fast shutdown
+    shutdown_count = [0]
+    def signal_handler(signum, frame):
+        shutdown_count[0] += 1
+        stop_flag.set()
+        sse_update_event.set()  # Wake up SSE generators
+        if shutdown_count[0] == 1:
+            print(f"\n{C_YELLOW}Shutting down... (press Ctrl+C again to force){C_RESET}")
+        elif shutdown_count[0] >= 2:
+            print(f"\n{C_RED}Force exit!{C_RESET}")
+            os._exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     # Run server
     try:
         uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
     except KeyboardInterrupt:
         pass
+    except SystemExit:
+        pass
     finally:
         stop_flag.set()
-        print("\nShutting down...")
+        print(f"\n{C_GREEN}Shutdown complete.{C_RESET}")
 
 
 if __name__ == "__main__":

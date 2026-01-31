@@ -20,18 +20,28 @@ let countdown = 10;
 let eventSource = null;
 let map = null;
 let markers = {};
+let networkFilter = 'all';  // 'all', 'ipv4', 'ipv6', 'onion', 'i2p', 'cjdns'
 
-// Column visibility state - all visible by default (23 columns)
-const defaultVisibleColumns = [
+// All available columns (for reference)
+const allColumns = [
     'id', 'network', 'ip', 'port', 'direction', 'subver',
     'city', 'region', 'regionName', 'country', 'countryCode', 'continent', 'continentCode',
     'bytessent', 'bytesrecv', 'ping_ms', 'conntime', 'connection_type', 'services_abbrev',
     'lat', 'lon', 'isp',
     'in_addrman'
 ];
+
+// Default visible columns in user's preferred order
+const defaultVisibleColumns = [
+    'direction', 'ip', 'port', 'network', 'subver',
+    'connection_type', 'conntime', 'services_abbrev',
+    'city', 'regionName', 'country', 'continent', 'isp',
+    'ping_ms', 'bytessent', 'bytesrecv',
+    'in_addrman'
+];
 let visibleColumns = [...defaultVisibleColumns];
 
-// Column order (for drag-and-drop reordering)
+// Column order (for drag-and-drop reordering) - start with default order
 let columnOrder = [...defaultVisibleColumns];
 
 // Column labels for the config modal (must match column headers!)
@@ -40,17 +50,17 @@ const columnLabels = {
     'network': 'Net',
     'ip': 'IP',
     'port': 'Port',
-    'direction': 'Direction',
+    'direction': 'in/out',
     'subver': 'Node ver/name',
     'city': 'City',
     'region': 'State/reg',
     'regionName': 'State/reg (full)',
-    'country': 'Ctry',
+    'country': 'Country',
     'countryCode': 'Ctry Code',
-    'continent': 'Cont',
+    'continent': 'Continent',
     'continentCode': 'ContC',
-    'bytessent': 'Sent data',
-    'bytesrecv': 'Recv data',
+    'bytessent': 'Sent',
+    'bytesrecv': 'Received',
     'ping_ms': 'Ping',
     'conntime': 'Since',
     'connection_type': 'Type',
@@ -76,6 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupColumnResize();
     setupColumnDrag();
     setupColumnConfig();
+    setupNetworkFilter();
+    setupRestoreDefaults();
     setupPanelResize();
     initMap();
     fetchPeers();
@@ -84,6 +96,52 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSSE();
     startCountdown();
 });
+
+// Setup network filter buttons
+function setupNetworkFilter() {
+    document.querySelectorAll('.network-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const filter = btn.dataset.filter;
+            if (filter) {
+                networkFilter = filter;
+                // Update active state
+                document.querySelectorAll('.network-filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                // Re-render peers with filter
+                renderPeers();
+            }
+        });
+    });
+}
+
+// Setup restore defaults button
+function setupRestoreDefaults() {
+    const btn = document.getElementById('restore-defaults-btn');
+    if (btn) {
+        btn.addEventListener('click', () => {
+            // Reset to defaults
+            visibleColumns = [...defaultVisibleColumns];
+            columnOrder = [...defaultVisibleColumns];
+            networkFilter = 'all';
+
+            // Update filter button states
+            document.querySelectorAll('.network-filter-btn').forEach(b => b.classList.remove('active'));
+            const allBtn = document.querySelector('.network-filter-btn[data-filter="all"]');
+            if (allBtn) allBtn.classList.add('active');
+
+            // Clear localStorage
+            try {
+                localStorage.removeItem('mbcore_visible_columns');
+                localStorage.removeItem('mbcore_column_order');
+            } catch (e) {}
+
+            // Re-apply and re-render
+            applyColumnVisibility();
+            reorderTableColumns();
+            renderPeers();
+        });
+    }
+}
 
 // Setup column resizing via drag
 function setupColumnResize() {
@@ -593,10 +651,10 @@ async function fetchStats() {
         // Connected count
         document.getElementById('stat-connected').textContent = stats.connected || 0;
 
-        // Update peer header total count
+        // Update peer header total count (with "all" prefix)
         const countTotal = document.getElementById('count-total');
         if (countTotal) {
-            countTotal.textContent = stats.connected || 0;
+            countTotal.textContent = `all ${stats.connected || 0}`;
         }
 
         // Network stats - only show if enabled, with (in/out) format in stats bar
@@ -809,20 +867,27 @@ function setupSSE() {
 
 // Render peers to table - 23 COLUMNS with network colors
 function renderPeers() {
-    if (currentPeers.length === 0) {
+    // Apply network filter
+    let filteredPeers = currentPeers;
+    if (networkFilter !== 'all') {
+        filteredPeers = currentPeers.filter(p => p.network === networkFilter);
+    }
+
+    if (filteredPeers.length === 0) {
+        const msg = networkFilter === 'all' ? 'No peers connected' : `No ${networkFilter.toUpperCase()} peers`;
         peerTbody.innerHTML = `
             <tr class="loading-row">
-                <td colspan="23">No peers connected</td>
+                <td colspan="23">${msg}</td>
             </tr>
         `;
-        peerCount.textContent = '0 peers';
+        peerCount.textContent = networkFilter === 'all' ? '0 peers' : `0/${currentPeers.length} peers`;
         return;
     }
 
     // Sort peers (or keep original order if unsorted)
     let sortedPeers;
     if (sortColumn && sortDirection) {
-        sortedPeers = [...currentPeers].sort((a, b) => {
+        sortedPeers = [...filteredPeers].sort((a, b) => {
             let aVal = a[sortColumn];
             let bVal = b[sortColumn];
 
@@ -841,7 +906,7 @@ function renderPeers() {
         });
     } else {
         // No sorting - keep original order (by peer ID from API)
-        sortedPeers = [...currentPeers];
+        sortedPeers = [...filteredPeers];
     }
 
     // Helper to check if column is visible
@@ -902,31 +967,36 @@ function renderPeers() {
         const inAddrman = peer.in_addrman ? 'Yes' : 'No';
         const addrmanClass = peer.in_addrman ? 'addrman-yes' : 'addrman-no';
 
+        // Network text color class for most columns (except IP and Port)
+        const netTextClass = `network-${peer.network}`;
+
         // Cell definitions for dynamic column ordering
+        // Note: No JS truncation - CSS handles text-overflow with ellipsis
+        // When column is resized wider, full text shows automatically
         const cellDefs = {
-            'id': { class: 'cell-white', title: `Peer ID: ${peer.id}`, content: peer.id },
+            'id': { class: netTextClass, title: `Peer ID: ${peer.id}`, content: peer.id },
             'network': { class: `network-${peer.network}`, title: `Network: ${peer.network}`, content: peer.network },
-            'ip': { class: '', title: peer.addr, content: truncate(peer.ip, 20) },
+            'ip': { class: '', title: peer.addr, content: peer.ip || '-' },
             'port': { class: '', title: `Port: ${peer.port || '-'}`, content: peer.port || '-' },
             'direction': { class: '', title: peer.direction === 'IN' ? 'Inbound: They connected to us' : 'Outbound: We connected to them', content: `<span class="direction-badge ${directionClass}">${peer.direction}</span>` },
-            'subver': { class: '', title: peer.subver, content: truncate(peer.subver, 18) },
-            'city': { class: geoClass, title: `City: ${geoDisplay.city}`, content: truncate(geoDisplay.city, 15) },
-            'region': { class: geoClass, title: `State/Region: ${geoDisplay.region}`, content: geoDisplay.region },
-            'regionName': { class: geoClass, title: `State/Region Name: ${geoDisplay.regionName}`, content: truncate(geoDisplay.regionName, 12) },
-            'country': { class: geoClass, title: `Country: ${geoDisplay.country}`, content: truncate(geoDisplay.country, 12) },
-            'countryCode': { class: geoClass, title: `Country Code: ${geoDisplay.countryCode}`, content: geoDisplay.countryCode },
-            'continent': { class: geoClass, title: `Continent: ${geoDisplay.continent}`, content: truncate(geoDisplay.continent, 10) },
-            'continentCode': { class: geoClass, title: `Continent Code: ${geoDisplay.continentCode}`, content: geoDisplay.continentCode },
-            'bytessent': { class: 'cell-white', title: `Bytes Sent: ${peer.bytessent_fmt}`, content: peer.bytessent_fmt },
-            'bytesrecv': { class: 'cell-white', title: `Bytes Received: ${peer.bytesrecv_fmt}`, content: peer.bytesrecv_fmt },
-            'ping_ms': { class: 'cell-white', title: `Ping: ${peer.ping_ms != null ? peer.ping_ms + 'ms' : '-'}`, content: peer.ping_ms != null ? peer.ping_ms + 'ms' : '-' },
-            'conntime': { class: 'cell-white', title: `Connected: ${peer.conntime_fmt}`, content: peer.conntime_fmt },
-            'connection_type': { class: '', title: `Connection Type: ${peer.connection_type || '-'}`, content: truncate(peer.connection_type || '-', 12) },
-            'services_abbrev': { class: 'cell-white', title: (peer.services || []).join(', '), content: peer.services_abbrev || '-' },
-            'lat': { class: `cell-white ${geoClass}`, title: `Latitude: ${geoDisplay.lat}`, content: geoDisplay.lat },
-            'lon': { class: `cell-white ${geoClass}`, title: `Longitude: ${geoDisplay.lon}`, content: geoDisplay.lon },
-            'isp': { class: geoClass, title: `ISP: ${geoDisplay.isp}`, content: truncate(geoDisplay.isp, 15) },
-            'in_addrman': { class: `cell-white ${addrmanClass}`, title: `In Address Manager: ${inAddrman}`, content: inAddrman }
+            'subver': { class: netTextClass, title: peer.subver, content: peer.subver || '-' },
+            'city': { class: `${geoClass} ${netTextClass}`, title: `City: ${geoDisplay.city}`, content: geoDisplay.city },
+            'region': { class: `${geoClass} ${netTextClass}`, title: `State/Region: ${geoDisplay.region}`, content: geoDisplay.region },
+            'regionName': { class: `${geoClass} ${netTextClass}`, title: `State/Region Name: ${geoDisplay.regionName}`, content: geoDisplay.regionName },
+            'country': { class: `${geoClass} ${netTextClass}`, title: `Country: ${geoDisplay.country}`, content: geoDisplay.country },
+            'countryCode': { class: `${geoClass} ${netTextClass}`, title: `Country Code: ${geoDisplay.countryCode}`, content: geoDisplay.countryCode },
+            'continent': { class: `${geoClass} ${netTextClass}`, title: `Continent: ${geoDisplay.continent}`, content: geoDisplay.continent },
+            'continentCode': { class: `${geoClass} ${netTextClass}`, title: `Continent Code: ${geoDisplay.continentCode}`, content: geoDisplay.continentCode },
+            'bytessent': { class: netTextClass, title: `Bytes Sent: ${peer.bytessent_fmt}`, content: peer.bytessent_fmt },
+            'bytesrecv': { class: netTextClass, title: `Bytes Received: ${peer.bytesrecv_fmt}`, content: peer.bytesrecv_fmt },
+            'ping_ms': { class: netTextClass, title: `Ping: ${peer.ping_ms != null ? peer.ping_ms + 'ms' : '-'}`, content: peer.ping_ms != null ? peer.ping_ms + 'ms' : '-' },
+            'conntime': { class: netTextClass, title: `Connected: ${peer.conntime_fmt}`, content: peer.conntime_fmt },
+            'connection_type': { class: netTextClass, title: `Connection Type: ${peer.connection_type || '-'}`, content: peer.connection_type_abbrev || '-' },
+            'services_abbrev': { class: netTextClass, title: (peer.services || []).join(', '), content: peer.services_abbrev || '-' },
+            'lat': { class: `${geoClass} ${netTextClass}`, title: `Latitude: ${geoDisplay.lat}`, content: geoDisplay.lat },
+            'lon': { class: `${geoClass} ${netTextClass}`, title: `Longitude: ${geoDisplay.lon}`, content: geoDisplay.lon },
+            'isp': { class: `${geoClass} ${netTextClass}`, title: `ISP: ${geoDisplay.isp}`, content: geoDisplay.isp },
+            'in_addrman': { class: `${addrmanClass} ${netTextClass}`, title: `In Address Manager: ${inAddrman}`, content: inAddrman }
         };
 
         // Build cells in column order
@@ -940,7 +1010,12 @@ function renderPeers() {
     }).join('');
 
     peerTbody.innerHTML = rows;
-    peerCount.textContent = `${currentPeers.length} peers`;
+    // Show count with filter info
+    if (networkFilter === 'all') {
+        peerCount.textContent = `${filteredPeers.length} peers`;
+    } else {
+        peerCount.textContent = `${filteredPeers.length}/${currentPeers.length} peers`;
+    }
 }
 
 // Truncate string
