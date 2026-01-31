@@ -77,6 +77,14 @@ body {
     letter-spacing: -0.5px;
 }
 
+.logo-text .version {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-dim);
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
 .subtitle {
     color: var(--text-secondary);
     font-size: 13px;
@@ -211,8 +219,38 @@ body {
 .stat-data.stat-i2p { color: var(--net-i2p); }
 .stat-data.stat-cjdns { color: var(--net-cjdns); }
 
-.stat-timer {
+/* Update frequency - right-aligned before Next Update */
+.stat-freq {
     margin-left: auto;
+}
+
+.stat-freq .stat-data {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+
+#refresh-rate-input {
+    width: 28px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 400;
+    text-align: center;
+    padding: 1px 2px;
+}
+
+#refresh-rate-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+#refresh-rate-input:hover {
+    border-color: var(--text-dim);
 }
 
 .stat-timer .stat-data {
@@ -568,8 +606,8 @@ th[data-col="direction"] {
 }
 
 /* Location styling */
+/* Private locations inherit network color (onion=red, i2p=blue, cjdns=pink) */
 .location-private {
-    color: var(--accent-yellow);
     font-style: italic;
 }
 
@@ -644,6 +682,16 @@ th[data-col="direction"] {
     margin-right: 2px;
 }
 
+.antarctica-toggle {
+    color: var(--accent-blue);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.antarctica-toggle:hover {
+    text-decoration: underline;
+}
+
 .legend-note {
     font-size: 12px;
     cursor: help;
@@ -664,6 +712,46 @@ th[data-col="direction"] {
 .dot-i2p { background: var(--net-i2p); }
 .dot-cjdns { background: var(--net-cjdns); }
 .dot-unavailable { background: var(--text-dim); }
+
+/* Refresh rate control */
+.refresh-rate-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 4px 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    margin-left: 12px;
+}
+
+.refresh-rate-label {
+    color: var(--text-dim);
+    margin-right: 2px;
+}
+
+.refresh-rate-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 2px 6px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.refresh-rate-btn:hover {
+    background: var(--border-color);
+    color: var(--text-primary);
+}
+
+.refresh-rate-btn.active {
+    background: rgba(88, 166, 255, 0.2);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
 
 /* Map status indicator */
 .map-status {
@@ -703,9 +791,85 @@ th[data-col="direction"] {
     height: 180px;  /* Default height, can be resized via drag handle */
 }
 
+/* Changes window config */
+.changes-window-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+}
+
 .changes-window {
     color: var(--text-dim);
     font-size: 10px;
+}
+
+.changes-config-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+
+.changes-config-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.changes-config-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px;
+    z-index: 100;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 80px;
+}
+
+.changes-config-dropdown.active {
+    display: flex;
+}
+
+.changes-config-dropdown .dropdown-label {
+    font-size: 9px;
+    color: var(--text-dim);
+    margin-bottom: 2px;
+}
+
+.changes-config-dropdown .dropdown-option {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-family: inherit;
+    padding: 3px 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.changes-config-dropdown .dropdown-option:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.changes-config-dropdown .dropdown-option.active {
+    background: rgba(88, 166, 255, 0.2);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
 }
 
 .event-connected {
@@ -901,4 +1065,14 @@ th[data-col="direction"] {
 /* Tooltips already handled by title attribute, but add custom styling if needed */
 [title] {
     cursor: help;
+}
+
+/* Row selected animation when clicking to show on map */
+.peer-table tr.row-selected {
+    animation: row-highlight 1.5s ease-out;
+}
+
+@keyframes row-highlight {
+    0% { background: rgba(88, 166, 255, 0.4) !important; }
+    100% { background: transparent; }
 }

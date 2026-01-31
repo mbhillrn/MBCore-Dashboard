@@ -366,14 +366,38 @@ def get_local_ips() -> list:
 
 
 def check_port_available(port: int) -> bool:
-    """Check if a port is available"""
+    """Check if a port is available (with SO_REUSEADDR for TIME_WAIT sockets)"""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(('', port))
         sock.close()
         return True
     except OSError:
         return False
+
+
+def kill_existing_dashboard():
+    """Find and kill any existing dashboard server processes"""
+    import os
+    my_pid = os.getpid()
+    try:
+        # Find Python processes running server.py
+        result = subprocess.run(
+            ['pgrep', '-f', 'python.*server\\.py'],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            pids = [int(p) for p in result.stdout.strip().split('\n') if p]
+            for pid in pids:
+                if pid != my_pid:
+                    try:
+                        os.kill(pid, signal.SIGTERM)
+                        time.sleep(0.5)  # Give it time to terminate
+                    except ProcessLookupError:
+                        pass  # Process already gone
+    except Exception:
+        pass  # pgrep might not be available
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -841,15 +865,70 @@ def main():
         print("Error: Configuration not found. Run ./da.sh first to configure.")
         sys.exit(1)
 
-    # Use fixed port, fallback to random if taken
+    # Kill any existing dashboard processes that might be holding the port
+    kill_existing_dashboard()
+
+    # Use fixed port, retry a few times if needed (for TIME_WAIT sockets)
     port = WEB_PORT
     if not check_port_available(port):
-        print(f"\n{C_YELLOW}⚠ Port {port} is already in use, finding alternative...{C_RESET}")
-        port = find_fallback_port()
-        if port == 0:
-            print(f"{C_RED}Error: Could not find available port{C_RESET}")
-            sys.exit(1)
-        print(f"{C_GREEN}✓ Using port {port}{C_RESET}\n")
+        print(f"\n{C_YELLOW}⚠ Port {port} is in use, waiting for it to be released...{C_RESET}")
+        # Retry 3 times with 1.5 second delays
+        for attempt in range(3):
+            time.sleep(1.5)
+            if check_port_available(port):
+                print(f"{C_GREEN}✓ Port {port} is now available{C_RESET}\n")
+                break
+        else:
+            # Still not available - ask user what to do
+            random_port = find_fallback_port()
+            print(f"\n{C_RED}✗ Port {port} is still in use{C_RESET}")
+            print(f"{C_YELLOW}  Another application may be using this port.{C_RESET}")
+            print(f"{C_DIM}  Tip: Check with 'lsof -i :{port}' or 'ss -tlnp | grep {port}'{C_RESET}")
+            print()
+            print(f"{C_BOLD}Choose an option:{C_RESET}")
+            print(f"  {C_GREEN}1{C_RESET}) Use random port {C_CYAN}{random_port}{C_RESET}")
+            print(f"  {C_GREEN}2{C_RESET}) Choose your own port")
+            print(f"  {C_GREEN}q{C_RESET}) Quit")
+            print()
+
+            while True:
+                try:
+                    choice = input(f"{C_YELLOW}Enter choice (1/2/q): {C_RESET}").strip().lower()
+                except (KeyboardInterrupt, EOFError):
+                    print()
+                    sys.exit(0)
+
+                if choice == 'q':
+                    sys.exit(0)
+                elif choice == '1':
+                    port = random_port
+                    print(f"{C_GREEN}✓ Using port {port}{C_RESET}\n")
+                    break
+                elif choice == '2':
+                    # Prompt for custom port
+                    while True:
+                        try:
+                            port_input = input(f"{C_YELLOW}Enter desired port (49152-65535): {C_RESET}").strip()
+                        except (KeyboardInterrupt, EOFError):
+                            print()
+                            sys.exit(0)
+
+                        try:
+                            custom_port = int(port_input)
+                            if 49152 <= custom_port <= 65535:
+                                if check_port_available(custom_port):
+                                    port = custom_port
+                                    print(f"{C_GREEN}✓ Using port {port}{C_RESET}\n")
+                                    break
+                                else:
+                                    print(f"{C_RED}Port {custom_port} is also in use. Try another.{C_RESET}")
+                            else:
+                                print(f"{C_RED}Port must be between 49152 and 65535{C_RESET}")
+                        except ValueError:
+                            print(f"{C_RED}Invalid port number{C_RESET}")
+                    break
+                else:
+                    print(f"{C_RED}Invalid choice. Enter 1, 2, or q{C_RESET}")
 
     # Get local IPs and subnets
     local_ips, subnets = get_local_ips()
@@ -879,7 +958,7 @@ def main():
     print(f"  {C_BOLD}{C_BLUE}██║╚██╔╝██║██╔══██╗██║     ██║   ██║██╔══██╗██╔══╝  {C_RESET}")
     print(f"  {C_BOLD}{C_BLUE}██║ ╚═╝ ██║██████╔╝╚██████╗╚██████╔╝██║  ██║███████╗{C_RESET}")
     print(f"  {C_BOLD}{C_BLUE}╚═╝     ╚═╝╚═════╝  ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝{C_RESET}")
-    print(f"  {C_BOLD}{C_WHITE}Dashboard{C_RESET}  {C_DIM}v2.0.0{C_RESET} {C_WHITE}(Bitcoin Core peer info/map/tools){C_RESET}")
+    print(f"  {C_BOLD}{C_WHITE}Dashboard{C_RESET}  {C_DIM}v2.2.2{C_RESET} {C_WHITE}(Bitcoin Core peer info/map/tools){C_RESET}")
     print(f"  {'─' * logo_w}")
     print(f"  {C_DIM}Created by mbhillrn{C_RESET}")
     print(f"  {C_DIM}MIT License - Free to use, modify, and distribute{C_RESET}")

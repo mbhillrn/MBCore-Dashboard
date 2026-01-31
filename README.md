@@ -2,6 +2,8 @@
 
 A lightweight monitoring tool for Bitcoin Core nodes that visualizes peer connections on an interactive world map.
 
+**Requires:** Bitcoin Core (`bitcoind`) installed and running on your system.
+
 **No accounts, registrations, or sign-ups required.** Everything runs locally on your machine.
 
 ## Why?
@@ -18,6 +20,11 @@ Running a Bitcoin node is more enjoyable when you can see your peers across the 
 - **Connection History** - Track recently connected and disconnected peers
 - **Web Dashboard** - Clean, responsive interface accessible from any device on your network
 - **Smart Caching** - Geo-location data is cached in a local SQLite database to minimize API calls
+- **Configurable Refresh Rate** - Set your preferred update frequency in seconds (default: 10s)
+- **Interactive Peer Selection** - Click any peer row to highlight it on the map
+- **Version Display** - Shows current version in the header
+- **Auto-Update** - Checks for updates from GitHub and offers one-click updates from the menu
+- **Antarctica Toggle** - Hide or show private network peers displayed in the Antarctica map area
 
 ## Quick Start
 
@@ -125,6 +132,25 @@ Additional options:
 - **d) Rerun Detection** - Re-detect Bitcoin Core settings
 - **m) Manual Settings** - Manually enter Bitcoin Core paths
 - **t) Terminal View** - Basic terminal-based peer list (limited features)
+- **u) Update** - Update to the latest version (shown when an update is available)
+
+## Usage Tips
+
+### Refresh Rate
+
+The map update frequency can be adjusted in the stats bar using the "Update Freq" text input. Enter any number of seconds (default: 10). Your preference is saved automatically.
+
+**Recommendation:** On a decently powered machine, a 10-second refresh rate provides a good balance between responsiveness and resource usage. Lower-powered systems may prefer 15 or 30 seconds.
+
+### Peer Selection
+
+Click any row in the peer table to highlight that peer on the map. The map will pan to show the peer's location and display its information popup.
+
+### Private Networks on the Map
+
+Peers using private networks (Tor, I2P, CJDNS) and peers with unavailable geo-location don't have real geographic coordinates. These peers are still shown on the map, scattered across the northern coast of Antarctica. Each peer maintains a stable position during its connection, so dots won't jump around between refreshes. You can identify them by their network color in the popup.
+
+If you prefer not to see these Antarctica dots, click the "Hide" link in the map legend (next to "Private"). Click "Show" to bring them back. Your preference is saved automatically.
 
 ## Project Structure
 
