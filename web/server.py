@@ -888,9 +888,12 @@ def main():
     print(f"  {C_BOLD}{C_YELLOW}** FOLLOW THESE INSTRUCTIONS TO GET TO THE DASHBOARD! **{C_RESET}")
     print(f"{C_CYAN}{'═' * line_w}{C_RESET}")
     print("")
-    print(f"  {C_YELLOW}To enter the dashboard, visit:{C_RESET}")
-    print(f"    {C_CYAN}http://{lan_ip}:{port}{C_RESET}        {C_DIM}From anywhere on your network{C_RESET}")
-    print(f"    {C_CYAN}http://127.0.0.1:{port}{C_RESET}       {C_DIM}From the local node machine{C_RESET}")
+    print(f"  {C_YELLOW}To enter the dashboard, visit (Ctrl+Click to open):{C_RESET}")
+    url_lan = f"http://{lan_ip}:{port}"
+    url_local = f"http://127.0.0.1:{port}"
+    url_width = max(len(url_lan), len(url_local)) + 4
+    print(f"    {C_CYAN}{url_lan:<{url_width}}{C_RESET}{C_DIM}From anywhere on your network{C_RESET}")
+    print(f"    {C_CYAN}{url_local:<{url_width}}{C_RESET}{C_DIM}From the local node machine{C_RESET}")
     print("")
     print(f"{C_CYAN}{'─' * line_w}{C_RESET}")
     print(f"  {C_BOLD}{C_RED}TROUBLESHOOTING:{C_RESET}")
