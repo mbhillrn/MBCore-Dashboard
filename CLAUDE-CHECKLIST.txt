@@ -2,8 +2,57 @@
 CLAUDE LOOK HERE - MBTC-DASH Development Checklist
 ================================================================================
 
-Last Updated: 2026-01-30
-Current Version: 0.2.3
+Last Updated: 2026-01-31
+Current Version: 1.1.0
+
+================================================================================
+** VERSION 1.1.0 CHANGES (IN PROGRESS) **
+================================================================================
+
+MEMORY/PERFORMANCE FIXES:
+  [x] Fix peer_ip_map memory leak - delete entries after disconnect
+  [x] Fix slow shutdown - daemon threads, force exit after timeout
+
+UI IMPROVEMENTS:
+  [x] Add horizontal scrollbar for peer table
+  [x] Fix truncation - show full text when column is resized wider
+  [x] Center the "in/out" column cells
+  [x] Add network color to text in most columns (not just row highlight)
+
+COLUMN CHANGES:
+  [x] Direction -> "in/out"
+  [x] Ctry -> "Country" (keep "Ctry Code" as is)
+  [x] Cont -> "Continent" (keep "ContC" as is)
+  [x] Sent data -> "Sent"
+  [x] Recv data -> "Received"
+  [x] Abbreviate connection_type: OFR, BLO, INB, MAN, FET, FEL (with hover)
+
+DEFAULT VISIBLE COLUMNS (in order):
+  1. in/out (Direction)
+  2. IP
+  3. Port
+  4. Net
+  5. Node ver/name
+  6. Type
+  7. Since
+  8. Service
+  9. City
+  10. State/reg (full)
+  11. Country
+  12. Continent
+  13. ISP
+  14. Ping
+  15. Sent
+  16. Received
+  17. In Addrman?
+
+NEW FEATURES:
+  [x] Network filter - click "all 155", "IPV4 98", etc. to filter table
+  [x] "Restore Defaults" button replaces "View/Filter Options" text
+  [x] Column drag-and-drop reordering (from v1.0.0)
+
+VERSION UPDATE:
+  [x] Update version to 1.1.0 in da.sh, index.html footer, checklist
 
 ================================================================================
 ** ACTIVE REFACTOR - SESSION CACHE ARCHITECTURE **

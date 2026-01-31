@@ -136,6 +136,13 @@ body {
 .protocol-list .proto-cjdns { color: var(--net-cjdns); }
 .protocol-list .proto-all-configured { color: var(--accent-green); }
 
+.protocol-hint {
+    font-size: 9px;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-top: 2px;
+}
+
 .status-indicator {
     width: 8px;
     height: 8px;
@@ -228,13 +235,18 @@ body {
 }
 
 .resizable-panel {
-    resize: vertical;
+    /* Custom resize handles in JS - no CSS resize needed */
+    /* overflow: visible allows resize handle to show, but we clip content */
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    /* Add padding at bottom so content/scrollbar is above resize handle */
+    padding-bottom: 12px;
 }
 
 .peer-panel {
     min-height: 200px;
-    max-height: 600px;
+    height: 500px;  /* Default height, can be resized via drag handle */
 }
 
 .panel-header {
@@ -321,6 +333,41 @@ body {
     color: var(--text-primary);
 }
 
+/* Restore Defaults Button */
+.restore-defaults-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 10px;
+    transition: all 0.2s;
+    margin-right: 8px;
+}
+
+.restore-defaults-btn:hover {
+    background: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Network Filter Buttons */
+.network-filter-btn {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+
+.network-filter-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.network-filter-btn.active {
+    background: rgba(88, 166, 255, 0.2);
+    font-weight: 600;
+}
+
 /* Resize handle - spans full width of panel bottom */
 .resize-handle {
     position: absolute;
@@ -344,19 +391,43 @@ body {
     min-height: 0;
 }
 
-#peer-table-container {
-    max-height: calc(20 * 32px + 40px); /* 20 rows * row height + header */
+/* Table containers fill available panel space, scroll as needed */
+#peer-table-container,
+#changes-table-container {
+    flex: 1;
+    overflow: auto;
+    max-width: 100%;
 }
 
-#changes-table-container {
-    max-height: calc(5 * 32px + 40px); /* 5 rows * row height + header */
+/* Custom scrollbar styling */
+.table-container::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 5px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 5px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+}
+
+.table-container::-webkit-scrollbar-corner {
+    background: var(--bg-secondary);
 }
 
 .peer-table {
-    width: max-content;
-    min-width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 11px;
+    /* Width is sum of column widths - no min-width so columns can shrink */
 }
 
 .peer-table thead {
@@ -375,6 +446,8 @@ body {
     cursor: pointer;
     user-select: none;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     position: relative;
     min-width: 40px;
 }
@@ -416,7 +489,7 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 150px;
+    /* No max-width - width determined by column header width set via resize */
 }
 
 .peer-table tbody tr:hover {
@@ -430,6 +503,15 @@ body {
 }
 
 /* Direction badge - KEEP EXACTLY AS IS */
+/* Center direction column */
+td[data-col="direction"] {
+    text-align: center;
+}
+
+th[data-col="direction"] {
+    text-align: center;
+}
+
 .direction-badge {
     display: inline-block;
     padding: 2px 6px;
@@ -616,7 +698,7 @@ body {
 /* Changes Panel */
 .changes-panel {
     min-height: 100px;
-    max-height: 250px;
+    height: 180px;  /* Default height, can be resized via drag handle */
 }
 
 .changes-window {
@@ -797,6 +879,21 @@ body {
 /* Column visibility */
 .col-hidden {
     display: none !important;
+}
+
+/* Column drag-and-drop reordering */
+.peer-table th[draggable="true"] {
+    cursor: grab;
+}
+
+.peer-table th.dragging {
+    opacity: 0.5;
+    background: var(--accent-blue);
+}
+
+.peer-table th.drag-over {
+    border-left: 3px solid var(--accent-blue);
+    background: rgba(88, 166, 255, 0.2);
 }
 
 /* Tooltips already handled by title attribute, but add custom styling if needed */
