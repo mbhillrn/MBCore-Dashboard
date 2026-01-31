@@ -22,6 +22,9 @@ Running a Bitcoin node is more enjoyable when you can see your peers across the 
 - **Smart Caching** - Geo-location data is cached in a local SQLite database to minimize API calls
 - **Configurable Refresh Rate** - Set your preferred update frequency in seconds (default: 10s)
 - **Interactive Peer Selection** - Click any peer row to highlight it on the map
+- **Version Display** - Shows current version in the header
+- **Auto-Update** - Checks for updates from GitHub and offers one-click updates from the menu
+- **Antarctica Toggle** - Hide or show private network peers displayed in the Antarctica map area
 
 ## Quick Start
 
@@ -129,6 +132,7 @@ Additional options:
 - **d) Rerun Detection** - Re-detect Bitcoin Core settings
 - **m) Manual Settings** - Manually enter Bitcoin Core paths
 - **t) Terminal View** - Basic terminal-based peer list (limited features)
+- **u) Update** - Update to the latest version (shown when an update is available)
 
 ## Usage Tips
 
@@ -145,6 +149,8 @@ Click any row in the peer table to highlight that peer on the map. The map will 
 ### Private Networks on the Map
 
 Peers using private networks (Tor, I2P, CJDNS) and peers with unavailable geo-location don't have real geographic coordinates. These peers are still shown on the map, scattered across the northern coast of Antarctica. Each peer maintains a stable position during its connection, so dots won't jump around between refreshes. You can identify them by their network color in the popup.
+
+If you prefer not to see these Antarctica dots, click the "Hide" link in the map legend (next to "Private"). Click "Show" to bring them back. Your preference is saved automatically.
 
 ## Project Structure
 

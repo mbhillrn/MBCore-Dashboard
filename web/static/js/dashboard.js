@@ -6,6 +6,7 @@
 // Configuration
 let refreshInterval = 10000; // 10 seconds default (can be changed by user)
 let changesWindowSeconds = 20; // seconds to show in Recent Changes (default 20)
+let showAntarcticaDots = true; // show private network dots in Antarctica (default true)
 const API_BASE = '';
 
 // State
@@ -87,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadColumnPreferences();  // Load saved order/visibility first
     setupRefreshRateControl(); // Load refresh rate preference early
     setupChangesWindowControl(); // Load changes window preference
+    setupAntarcticaToggle(); // Setup Antarctica show/hide toggle
     // Don't load saved column widths on startup - let fitColumnsToWindow handle it after data loads
     // This ensures columns always fit the window properly on page load
     // But DO set initial changes table widths (it's a small fixed table)
@@ -662,16 +664,11 @@ function updateMap() {
         const network = peer.network || 'ipv4';
         const color = NETWORK_COLORS[network] || NETWORK_COLORS['ipv4'];
 
-        if (peer.location_status === 'private') {
-            // Private locations: cluster by network type in Antarctica
+        if (peer.location_status === 'private' || peer.location_status === 'unavailable') {
+            // Private/unavailable locations: show in Antarctica if enabled
+            if (!showAntarcticaDots) return; // Skip if Antarctica dots are hidden
             // Use stable positions so dots don't move during a connection
-            const pos = getStableAntarcticaPosition(peer.addr, network, 'private');
-            lat = pos.lat;
-            lon = pos.lon;
-        } else if (peer.location_status === 'unavailable') {
-            // Unavailable locations: separate area in Antarctica
-            // Use stable positions so dots don't move during a connection
-            const pos = getStableAntarcticaPosition(peer.addr, network, 'unavailable');
+            const pos = getStableAntarcticaPosition(peer.addr, network, peer.location_status);
             lat = pos.lat;
             lon = pos.lon;
         } else if (peer.lat && peer.lon) {
@@ -1622,6 +1619,35 @@ function updateChangesWindowDisplay() {
             }
         });
     }
+}
+
+// Setup Antarctica dots show/hide toggle
+function setupAntarcticaToggle() {
+    const toggle = document.getElementById('antarctica-toggle');
+    if (!toggle) return;
+
+    // Load saved preference (default to showing)
+    try {
+        const saved = localStorage.getItem('mbcore_show_antarctica');
+        if (saved !== null) {
+            showAntarcticaDots = saved === 'true';
+            toggle.textContent = showAntarcticaDots ? 'Hide' : 'Show';
+        }
+    } catch (e) {}
+
+    toggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        showAntarcticaDots = !showAntarcticaDots;
+        toggle.textContent = showAntarcticaDots ? 'Hide' : 'Show';
+
+        // Save preference
+        try {
+            localStorage.setItem('mbcore_show_antarctica', showAntarcticaDots.toString());
+        } catch (e) {}
+
+        // Refresh map to apply change
+        updateMap();
+    });
 }
 
 function updateCountdownDisplay() {

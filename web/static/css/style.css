@@ -682,6 +682,16 @@ th[data-col="direction"] {
     margin-right: 2px;
 }
 
+.antarctica-toggle {
+    color: var(--accent-blue);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.antarctica-toggle:hover {
+    text-decoration: underline;
+}
+
 .legend-note {
     font-size: 12px;
     cursor: help;
