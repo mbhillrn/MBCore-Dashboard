@@ -88,14 +88,10 @@ const changesTbody = document.getElementById('changes-tbody');
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     loadColumnPreferences();  // Load saved order/visibility first
-    // Load saved column widths, or set defaults if none saved
-    if (!loadColumnWidths()) {
-        setInitialColumnWidths();
-    }
-    // Load changes table column widths
-    if (!loadChangesColumnWidths()) {
-        setInitialChangesColumnWidths();
-    }
+    // Don't load saved column widths on startup - let fitColumnsToWindow handle it after data loads
+    // This ensures columns always fit the window properly on page load
+    // But DO set initial changes table widths (it's a small fixed table)
+    setInitialChangesColumnWidths();
     setupTableSorting();
     setupColumnResize();
     setupChangesColumnResize();
@@ -350,11 +346,11 @@ function loadChangesColumnWidths() {
 
 // Set initial changes column widths
 function setInitialChangesColumnWidths() {
+    // Always set all column widths to ensure none are missing
+    changesColumnWidths = {};  // Clear any old cached values
     const defaultWidths = { 'time': 80, 'event': 90, 'ip': 140, 'network': 70 };
     Object.entries(defaultWidths).forEach(([col, width]) => {
-        if (!changesColumnWidths[col]) {
-            applyChangesColumnWidth(col, `${width}px`);
-        }
+        applyChangesColumnWidth(col, `${width}px`);
     });
 }
 
@@ -1345,8 +1341,9 @@ function renderPeers() {
     }).join('');
 
     peerTbody.innerHTML = rows;
-    if (!hasSavedColumnWidths && !autoSizedColumns && currentPeers.length) {
-        autoSizeColumns();
+    // Fit columns to window on first data load
+    if (!autoSizedColumns && currentPeers.length) {
+        fitColumnsToWindow();
         autoSizedColumns = true;
     }
     // Show count with filter info
