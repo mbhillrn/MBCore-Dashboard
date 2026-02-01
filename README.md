@@ -125,13 +125,15 @@ When the dashboard starts, it displays the access URLs right on screen:
       http://127.0.0.1:58333
 
   Scenario 2 - From Another Device on Your Network:
-    Option A - Direct LAN Access (may need firewall - SEE README)
+    Option A - Direct LAN Access (may need firewall configured - SEE README)
       http://192.168.x.x:58333  <- Your node's detected IP
 
-    Option B - SSH Tunnel (then visit)
+    Option B - SSH Tunnel (SEE README - then visit)
       http://127.0.0.1:58333
 
-════════════════════════════════════════════════════════════════════════════════════
+────────────────────────────────────────────────────────────────────────────────────
+  TROUBLESHOOTING: SEE THE README
+────────────────────────────────────────────────────────────────────────────────────
 ```
 
 **Your machine's IP address will be displayed on this screen.** From any other computer on your network, open a browser and go to that address:

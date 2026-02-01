@@ -96,14 +96,25 @@ Select option `1) Enter MBCore Dashboard` from the main menu.
 When the dashboard starts, it displays the access URLs right on screen:
 
 ```
-════════════════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════════════════════════
   ** FOLLOW THESE INSTRUCTIONS TO GET TO THE DASHBOARD! **
-════════════════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════════════════════════
 
-  To enter the dashboard, visit (Ctrl+Click to open):
-    http://192.168.4.100:58333    From anywhere on your network
-    http://127.0.0.1:58333        From the local node machine
-════════════════════════════════════════════════════════════════════
+  To enter the dashboard, visit (First run? See README/QUICKSTART)
+
+  Scenario 1 - Local Machine Only:
+      http://127.0.0.1:58333
+
+  Scenario 2 - From Another Device on Your Network:
+    Option A - Direct LAN Access (may need firewall configured - SEE README)
+      http://192.168.x.x:58333  <- Your node's detected IP
+
+    Option B - SSH Tunnel (SEE README - then visit)
+      http://127.0.0.1:58333
+
+────────────────────────────────────────────────────────────────────────────────────
+  TROUBLESHOOTING: SEE THE README
+────────────────────────────────────────────────────────────────────────────────────
 ```
 
 **Your machine's IP address will be displayed on this screen.** From any other computer on your network, open a browser and go to that address:
