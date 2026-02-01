@@ -698,7 +698,7 @@ def create_changes_panel() -> Panel:
 
     return Panel(
         content,
-        title=f"Recent Changes (last {RECENT_WINDOW}s)",
+        title=f"Recent Connections/Disconnections (last {RECENT_WINDOW}s)",
         border_style=STYLE_BORDER,
         padding=(0, 1),
         height=min(len(changes) + 3, 10) if changes else 4
