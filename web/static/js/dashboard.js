@@ -989,11 +989,23 @@ function loadColumnPreferences() {
         const savedVisible = localStorage.getItem('mbcore_visible_columns');
         if (savedVisible) {
             visibleColumns = JSON.parse(savedVisible);
+            // Migration: ensure 'id' is visible and first (v2.5.0 upgrade)
+            if (!visibleColumns.includes('id')) {
+                visibleColumns.unshift('id');
+            }
         }
 
         const savedOrder = localStorage.getItem('mbcore_column_order');
         if (savedOrder) {
             columnOrder = JSON.parse(savedOrder);
+            // Migration: ensure 'id' is first in order (v2.5.0 upgrade)
+            if (!columnOrder.includes('id')) {
+                columnOrder.unshift('id');
+            } else if (columnOrder[0] !== 'id') {
+                // Move 'id' to first position
+                columnOrder = columnOrder.filter(c => c !== 'id');
+                columnOrder.unshift('id');
+            }
             // Ensure all columns (including newly added defaults) are in the order
             allColumns.forEach(col => {
                 if (!columnOrder.includes(col)) {
@@ -1001,6 +1013,9 @@ function loadColumnPreferences() {
                 }
             });
         }
+
+        // Save migrated preferences
+        saveColumnPreferences();
 
         applyColumnVisibility();
 
