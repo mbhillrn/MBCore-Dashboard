@@ -53,6 +53,16 @@ CONFIG_FILE = DATA_DIR / 'config.conf'
 DB_FILE = DATA_DIR / 'peers.db'
 STATIC_DIR = SCRIPT_DIR / 'static'
 TEMPLATES_DIR = SCRIPT_DIR / 'templates'
+VERSION_FILE = PROJECT_DIR / 'VERSION'
+
+# Read version from file
+def get_version():
+    try:
+        return VERSION_FILE.read_text().strip()
+    except Exception:
+        return "0.0.0"
+
+VERSION = get_version()
 
 # Geo status codes
 GEO_OK = 0
@@ -965,7 +975,7 @@ async def api_events(request: Request):
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     """Serve the main dashboard page"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request, "version": VERSION})
 
 
 # Mount static files
@@ -1097,7 +1107,7 @@ def main():
     print(f"  {C_BOLD}{C_BLUE}██║╚██╔╝██║██╔══██╗██║     ██║   ██║██╔══██╗██╔══╝  {C_RESET}")
     print(f"  {C_BOLD}{C_BLUE}██║ ╚═╝ ██║██████╔╝╚██████╗╚██████╔╝██║  ██║███████╗{C_RESET}")
     print(f"  {C_BOLD}{C_BLUE}╚═╝     ╚═╝╚═════╝  ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝{C_RESET}")
-    print(f"  {C_BOLD}{C_WHITE}Dashboard{C_RESET}  {C_DIM}v2.3.4{C_RESET} {C_WHITE}(Bitcoin Core peer info/map/tools){C_RESET}")
+    print(f"  {C_BOLD}{C_WHITE}Dashboard{C_RESET}  {C_DIM}v{VERSION}{C_RESET} {C_WHITE}(Bitcoin Core peer info/map/tools){C_RESET}")
     print(f"  {'─' * logo_w}")
     print(f"  {C_DIM}Created by mbhillrn{C_RESET}")
     print(f"  {C_DIM}MIT License - Free to use, modify, and distribute{C_RESET}")
@@ -1106,20 +1116,22 @@ def main():
     print(f"  {C_BOLD}{C_YELLOW}** FOLLOW THESE INSTRUCTIONS TO GET TO THE DASHBOARD! **{C_RESET}")
     print(f"{C_CYAN}{'═' * line_w}{C_RESET}")
     print("")
-    print(f"  {C_YELLOW}To enter the dashboard, visit (Ctrl+Click to open):{C_RESET}")
+    print(f"  {C_WHITE}To enter the dashboard, visit {C_DIM}(First run? See {C_RESET}{C_RED}README/QUICKSTART{C_RESET}{C_DIM}){C_RESET}")
+    print("")
     url_lan = f"http://{lan_ip}:{port}"
     url_local = f"http://127.0.0.1:{port}"
-    url_width = max(len(url_lan), len(url_local)) + 4
-    print(f"    {C_CYAN}{url_lan:<{url_width}}{C_RESET}{C_DIM}From anywhere on your network{C_RESET}")
-    print(f"    {C_CYAN}{url_local:<{url_width}}{C_RESET}{C_DIM}From the local node machine{C_RESET}")
+    print(f"  {C_BOLD}{C_GREEN}Scenario 1{C_RESET} {C_WHITE}- Local Machine Only:{C_RESET}")
+    print(f"      {C_CYAN}{url_local}{C_RESET}")
+    print("")
+    print(f"  {C_BOLD}{C_GREEN}Scenario 2{C_RESET} {C_WHITE}- From Another Device on Your Network:{C_RESET}")
+    print(f"    {C_YELLOW}Option A{C_RESET} {C_WHITE}- Direct LAN Access {C_DIM}(may need firewall configured - {C_RESET}{C_RED}SEE README{C_RESET}{C_DIM}){C_RESET}")
+    print(f"      {C_CYAN}{url_lan}{C_RESET}  {C_DIM}<- Your node's detected IP{C_RESET}")
+    print("")
+    print(f"    {C_YELLOW}Option B{C_RESET} {C_WHITE}- SSH Tunnel {C_DIM}({C_RESET}{C_RED}SEE README{C_RESET}{C_DIM} - then visit){C_RESET}")
+    print(f"      {C_CYAN}{url_local}{C_RESET}")
     print("")
     print(f"{C_CYAN}{'─' * line_w}{C_RESET}")
-    print(f"  {C_BOLD}{C_RED}TROUBLESHOOTING:{C_RESET}")
-    print(f"  {C_DIM}If the page refuses to load from another computer on your network:{C_RESET}")
-    print(f"  {C_DIM}  - Ensure your firewall allows port {port}/tcp{C_RESET}")
-    print(f"  {C_DIM}  - Use the {C_RESET}{C_YELLOW}Firewall Helper{C_RESET}{C_DIM} from the main menu for easy setup!{C_RESET}")
-    print(f"  {C_DIM}  - Close any dashboard tabs left open from a previous session{C_RESET}")
-    print("")
+    print(f"  {C_BOLD}{C_WHITE}TROUBLESHOOTING:{C_RESET} {C_RED}SEE THE README{C_RESET}")
     print(f"{C_CYAN}{'─' * line_w}{C_RESET}")
     print(f"  Press {C_PINK}Ctrl+C{C_RESET} to stop the dashboard (press twice to force)")
     print(f"{C_CYAN}{'─' * line_w}{C_RESET}")

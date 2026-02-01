@@ -15,9 +15,10 @@ source "$MBTC_DIR/lib/ui.sh"
 source "$MBTC_DIR/lib/prereqs.sh"
 source "$MBTC_DIR/lib/config.sh"
 
-VERSION="2.3.8"
+# Read version from VERSION file
+VERSION=$(cat "$MBTC_DIR/VERSION" 2>/dev/null || echo "0.0.0")
 GITHUB_REPO="mbhillrn/MBCore-Dashboard"
-GITHUB_RAW_URL="https://raw.githubusercontent.com/$GITHUB_REPO/main/da.sh"
+GITHUB_VERSION_URL="https://raw.githubusercontent.com/$GITHUB_REPO/main/VERSION"
 UPDATE_AVAILABLE=0
 LATEST_VERSION=""
 
@@ -512,9 +513,9 @@ check_for_updates() {
         return 1
     fi
 
-    # Fetch the VERSION line from the remote da.sh (with 3 second timeout)
+    # Fetch the VERSION file from GitHub (with 3 second timeout)
     local remote_version
-    remote_version=$(curl -s --connect-timeout 3 "$GITHUB_RAW_URL" 2>/dev/null | grep -m1 '^VERSION=' | cut -d'"' -f2)
+    remote_version=$(curl -s --connect-timeout 3 "$GITHUB_VERSION_URL" 2>/dev/null | tr -d '[:space:]')
 
     if [[ -z "$remote_version" ]]; then
         return 1
