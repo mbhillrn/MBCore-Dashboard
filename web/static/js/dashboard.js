@@ -1079,25 +1079,31 @@ async function fetchStats() {
             countTotal.textContent = `all ${stats.connected || 0}`;
         }
 
-        // Network stats - only show if enabled, with (in/out) format in Node Status panel
-        // and network counts in peer header
+        // Network stats - ALWAYS show all networks in Node Status panel
+        // Use stacked In X / Out Y format with separate elements
         const networkNames = ['ipv4', 'ipv6', 'onion', 'i2p', 'cjdns'];
         const networkLabels = { 'ipv4': 'IPV4', 'ipv6': 'IPV6', 'onion': 'TOR', 'i2p': 'I2P', 'cjdns': 'CJDNS' };
 
         networkNames.forEach(net => {
             // Node Status panel network column elements
             const wrap = document.getElementById(`net-${net}-wrap`);
-            const val = document.getElementById(`stat-${net}`);
+            const inEl = document.getElementById(`stat-${net}-in`);
+            const outEl = document.getElementById(`stat-${net}-out`);
 
             // Peer header count elements
             const countEl = document.getElementById(`count-${net}`);
             const sepEl = document.getElementById(`sep-${net}`);
 
-            if (val) {
+            // Always show network in Node Status panel
+            if (wrap) {
+                wrap.classList.remove('hidden');
+
                 if (enabled.includes(net)) {
-                    if (wrap) wrap.classList.remove('hidden');
+                    // Configured - show actual counts
+                    wrap.classList.remove('not-configured');
                     const netData = networks[net] || {in: 0, out: 0};
-                    val.textContent = `(${netData.in}/${netData.out})`;
+                    if (inEl) inEl.textContent = netData.in;
+                    if (outEl) outEl.textContent = netData.out;
 
                     // Update peer header counts
                     if (countEl) {
@@ -1109,7 +1115,12 @@ async function fetchStats() {
                         sepEl.style.display = '';
                     }
                 } else {
-                    if (wrap) wrap.classList.add('hidden');
+                    // Not configured - show dashes and add class
+                    wrap.classList.add('not-configured');
+                    if (inEl) inEl.textContent = '-';
+                    if (outEl) outEl.textContent = '-';
+
+                    // Hide from peer header if not configured
                     if (countEl) countEl.style.display = 'none';
                     if (sepEl) sepEl.style.display = 'none';
                 }
@@ -1727,10 +1738,17 @@ function setupNodeStatusControls() {
     const configBtn = document.getElementById('node-config-btn');
     const dropdown = document.getElementById('node-config-dropdown');
 
-    // Toggle dropdown
+    // Toggle dropdown with fixed positioning
     if (configBtn && dropdown) {
         configBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+
+            // Position dropdown relative to button using fixed positioning
+            const btnRect = configBtn.getBoundingClientRect();
+            dropdown.style.top = (btnRect.bottom + 4) + 'px';
+            dropdown.style.right = (window.innerWidth - btnRect.right) + 'px';
+            dropdown.style.left = 'auto';
+
             dropdown.classList.toggle('active');
         });
 
@@ -1741,6 +1759,15 @@ function setupNodeStatusControls() {
 
         dropdown.addEventListener('click', (e) => {
             e.stopPropagation();
+        });
+
+        // Reposition dropdown on window resize
+        window.addEventListener('resize', () => {
+            if (dropdown.classList.contains('active')) {
+                const btnRect = configBtn.getBoundingClientRect();
+                dropdown.style.top = (btnRect.bottom + 4) + 'px';
+                dropdown.style.right = (window.innerWidth - btnRect.right) + 'px';
+            }
         });
     }
 

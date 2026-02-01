@@ -174,9 +174,9 @@ body {
 
 /* Node Status Panel */
 .node-status-panel {
-    overflow: visible;
+    overflow: visible !important;
     position: relative;
-    z-index: 10;
+    z-index: 20;
 }
 
 .node-status-panel .panel-header {
@@ -185,10 +185,11 @@ body {
     align-items: center;
     padding: 10px 16px;
     border-bottom: 1px solid var(--border-color);
+    overflow: visible;
 }
 
 .node-status-panel .panel-header h2 {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
@@ -199,13 +200,14 @@ body {
     align-items: center;
     gap: 16px;
     position: relative;
+    overflow: visible;
 }
 
 .status-time {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12px;
+    gap: 10px;
+    font-size: 13px;
     color: var(--text-secondary);
 }
 
@@ -226,7 +228,7 @@ body {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: 4px;
-    padding: 5px 7px;
+    padding: 6px 8px;
     cursor: pointer;
     color: var(--text-secondary);
     display: flex;
@@ -240,20 +242,17 @@ body {
     color: var(--text-primary);
 }
 
-/* Node config dropdown */
+/* Node config dropdown - positioned relative to viewport */
 .node-config-dropdown {
     display: none;
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 6px;
+    position: fixed;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 12px;
-    z-index: 1000;
+    z-index: 9999;
     min-width: 180px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .node-config-dropdown.active {
@@ -273,9 +272,9 @@ body {
     border-radius: 4px;
     color: var(--text-primary);
     font-family: inherit;
-    font-size: 12px;
+    font-size: 13px;
     text-align: center;
-    padding: 4px 6px;
+    padding: 5px 6px;
 }
 
 .refresh-input:focus {
@@ -284,7 +283,7 @@ body {
 }
 
 .dropdown-unit {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-dim);
 }
 
@@ -292,15 +291,16 @@ body {
 .node-status-content {
     display: flex;
     gap: 12px;
-    padding: 12px 16px;
+    padding: 14px 16px;
     align-items: stretch;
+    overflow: visible;
 }
 
 .status-card {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: 6px;
-    padding: 12px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -311,24 +311,24 @@ body {
 }
 
 .card-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--text-dim);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 /* Connected Card */
 .card-connected {
-    min-width: 90px;
+    min-width: 100px;
     align-items: center;
     justify-content: center;
     text-align: center;
 }
 
 .card-value-large {
-    font-size: 36px;
+    font-size: 42px;
     font-weight: 700;
     color: var(--accent-green);
     line-height: 1;
@@ -337,12 +337,12 @@ body {
 /* Networks Card */
 .card-networks {
     flex: 1;
-    min-width: 200px;
+    min-width: 280px;
 }
 
 .networks-grid {
     display: flex;
-    gap: 16px;
+    gap: 0;
     justify-content: space-around;
 }
 
@@ -350,18 +350,26 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
-    min-width: 55px;
+    gap: 3px;
+    min-width: 60px;
+    padding: 0 10px;
+    border-right: 1px solid var(--border-color);
 }
 
-.network-col.hidden {
-    display: none;
+.network-col:last-child {
+    border-right: none;
+}
+
+.network-col.not-configured .net-inout-row,
+.network-col.not-configured .net-score {
+    opacity: 0.5;
 }
 
 .net-name {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
+    margin-bottom: 2px;
 }
 
 .net-name.net-ipv4 { color: var(--net-ipv4); }
@@ -370,40 +378,57 @@ body {
 .net-name.net-i2p { color: var(--net-i2p); }
 .net-name.net-cjdns { color: var(--net-cjdns); }
 
-.net-inout {
-    font-size: 13px;
-    font-weight: 500;
+.net-inout-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+}
+
+.net-inout-item {
+    font-size: 12px;
     color: var(--text-primary);
 }
 
+.net-inout-label {
+    color: var(--text-dim);
+    font-size: 11px;
+}
+
+.net-inout-value {
+    font-weight: 600;
+    margin-left: 3px;
+}
+
 .net-score-label {
-    font-size: 9px;
+    font-size: 10px;
     color: var(--text-dim);
     text-transform: uppercase;
-    margin-top: 4px;
+    margin-top: 6px;
 }
 
 .net-score {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-secondary);
     font-weight: 500;
 }
 
-.net-overlay {
+.net-not-configured {
+    font-size: 10px;
     color: var(--text-dim);
     font-style: italic;
-    font-size: 10px;
+    margin-top: 4px;
 }
 
 /* Node Info Card */
 .card-node {
-    min-width: 100px;
+    min-width: 110px;
 }
 
 .node-info-grid {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
 }
 
 .node-info-row {
@@ -412,7 +437,7 @@ body {
 }
 
 .node-info-value {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-secondary);
 }
 
@@ -426,74 +451,78 @@ body {
 
 /* System Card */
 .card-system {
-    min-width: 80px;
+    min-width: 90px;
 }
 
 .system-stats {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
 
 .system-row {
     display: flex;
     align-items: baseline;
-    gap: 4px;
+    gap: 6px;
 }
 
 .system-label {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-dim);
     font-weight: 500;
-    width: 30px;
+    width: 32px;
 }
 
 .system-value {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     color: var(--text-primary);
 }
 
 .system-unit {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-dim);
 }
 
 /* BTC Card */
 .card-btc {
-    min-width: 100px;
+    min-width: 130px;
     text-align: center;
     align-items: center;
 }
 
 .btc-price {
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 700;
     color: var(--accent-yellow);
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
 }
 
 .btc-currency {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-dim);
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 .btc-block {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-dim);
     border-top: 1px solid var(--border-color);
-    padding-top: 6px;
+    padding-top: 8px;
     margin-top: auto;
     width: 100%;
+    text-align: center;
 }
 
 .btc-block-label {
     color: var(--text-dim);
+    display: block;
+    margin-bottom: 2px;
 }
 
 .btc-block-value {
     color: var(--text-secondary);
+    font-weight: 500;
 }
 
 /* Panels */

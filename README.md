@@ -4,6 +4,8 @@ A lightweight monitoring tool for Bitcoin Core nodes that visualizes peer connec
 
 **Requires:** Bitcoin Core (`bitcoind`) installed and running on your system.
 
+**Protocol Compatibility:** IPv4, IPv6, Tor, I2P, and CJDNS - all supported.
+
 **No accounts, registrations, or sign-ups required.** Everything runs locally on your machine.
 
 ## Why?

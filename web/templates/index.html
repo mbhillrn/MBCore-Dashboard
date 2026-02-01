@@ -13,7 +13,7 @@
         <!-- Header -->
         <header class="header">
             <div class="header-title">
-                <h1 class="logo-text">MBCore Dashboard <span class="version">v2.3.2</span></h1>
+                <h1 class="logo-text">MBCore Dashboard <span class="version">v2.3.3</span></h1>
                 <span class="subtitle">Peer info, map, and tools for Bitcoin Core</span>
                 <span class="credits">Created by mbhillrn | Support (btc): bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span>
             </div>
@@ -108,33 +108,48 @@
                     <div class="networks-grid">
                         <div class="network-col" id="net-ipv4-wrap">
                             <span class="net-name net-ipv4">IPv4</span>
-                            <span class="net-inout" id="stat-ipv4">-</span>
+                            <div class="net-inout-row">
+                                <span class="net-inout-item"><span class="net-inout-label">In</span><span class="net-inout-value" id="stat-ipv4-in">-</span></span>
+                                <span class="net-inout-item"><span class="net-inout-label">Out</span><span class="net-inout-value" id="stat-ipv4-out">-</span></span>
+                            </div>
                             <span class="net-score-label">Score</span>
                             <span class="net-score" id="info-score-ipv4">-</span>
                         </div>
                         <div class="network-col" id="net-ipv6-wrap">
                             <span class="net-name net-ipv6">IPv6</span>
-                            <span class="net-inout" id="stat-ipv6">-</span>
+                            <div class="net-inout-row">
+                                <span class="net-inout-item"><span class="net-inout-label">In</span><span class="net-inout-value" id="stat-ipv6-in">-</span></span>
+                                <span class="net-inout-item"><span class="net-inout-label">Out</span><span class="net-inout-value" id="stat-ipv6-out">-</span></span>
+                            </div>
                             <span class="net-score-label">Score</span>
                             <span class="net-score" id="info-score-ipv6">-</span>
                         </div>
                         <div class="network-col" id="net-onion-wrap">
                             <span class="net-name net-onion">Tor</span>
-                            <span class="net-inout" id="stat-onion">-</span>
-                            <span class="net-score-label">&nbsp;</span>
-                            <span class="net-score net-overlay">(overlay)</span>
+                            <div class="net-inout-row">
+                                <span class="net-inout-item"><span class="net-inout-label">In</span><span class="net-inout-value" id="stat-onion-in">-</span></span>
+                                <span class="net-inout-item"><span class="net-inout-label">Out</span><span class="net-inout-value" id="stat-onion-out">-</span></span>
+                            </div>
+                            <span class="net-score-label">Score</span>
+                            <span class="net-score">overlay</span>
                         </div>
                         <div class="network-col" id="net-i2p-wrap">
                             <span class="net-name net-i2p">I2P</span>
-                            <span class="net-inout" id="stat-i2p">-</span>
-                            <span class="net-score-label">&nbsp;</span>
-                            <span class="net-score net-overlay">(overlay)</span>
+                            <div class="net-inout-row">
+                                <span class="net-inout-item"><span class="net-inout-label">In</span><span class="net-inout-value" id="stat-i2p-in">-</span></span>
+                                <span class="net-inout-item"><span class="net-inout-label">Out</span><span class="net-inout-value" id="stat-i2p-out">-</span></span>
+                            </div>
+                            <span class="net-score-label">Score</span>
+                            <span class="net-score">overlay</span>
                         </div>
                         <div class="network-col" id="net-cjdns-wrap">
                             <span class="net-name net-cjdns">CJDNS</span>
-                            <span class="net-inout" id="stat-cjdns">-</span>
-                            <span class="net-score-label">&nbsp;</span>
-                            <span class="net-score net-overlay">(overlay)</span>
+                            <div class="net-inout-row">
+                                <span class="net-inout-item"><span class="net-inout-label">In</span><span class="net-inout-value" id="stat-cjdns-in">-</span></span>
+                                <span class="net-inout-item"><span class="net-inout-label">Out</span><span class="net-inout-value" id="stat-cjdns-out">-</span></span>
+                            </div>
+                            <span class="net-score-label">Score</span>
+                            <span class="net-score">overlay</span>
                         </div>
                     </div>
                 </div>
@@ -181,7 +196,7 @@
                     <div class="btc-price" id="info-btc-price">-</div>
                     <div class="btc-currency" id="info-btc-currency">USD</div>
                     <div class="btc-block">
-                        <span class="btc-block-label">Last:</span>
+                        <span class="btc-block-label">Last Block:</span>
                         <span class="btc-block-value" id="info-last-block">-</span>
                     </div>
                 </div>
@@ -347,7 +362,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <span>MBCore Dashboard v2.3.2 | created by mbhillrn | Support (btc): bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span>
+            <span>MBCore Dashboard v2.3.3 | created by mbhillrn | Support (btc): bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span>
             <span id="refresh-timer">Refreshing in 10s</span>
         </footer>
     </div>
