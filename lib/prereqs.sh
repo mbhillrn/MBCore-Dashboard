@@ -85,9 +85,9 @@ has_sudo() {
 # VENV FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Check if venv exists and is valid
+# Check if venv exists and is valid (has both python3 and pip)
 venv_exists() {
-    [[ -d "$VENV_DIR" && -f "$VENV_DIR/bin/python3" ]]
+    [[ -d "$VENV_DIR" && -f "$VENV_DIR/bin/python3" && -f "$VENV_DIR/bin/pip" ]]
 }
 
 # Create virtual environment
@@ -104,8 +104,8 @@ create_venv() {
         return 0
     fi
 
-    # Failed - show what happened
-    msg_err "Failed to create virtual environment"
+    # Couldn't create venv - show what happened and try to help
+    msg_warn "Virtual environment setup needed"
     echo ""
     echo -e "${T_DIM}Python said:${RST}"
     echo "$venv_error" | head -10
