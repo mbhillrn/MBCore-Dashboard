@@ -55,7 +55,7 @@
 This is the easiest case. On the machine running Bitcoin Core:
 
 ```bash
-cd /path/to/MBCore-Dashboard
+cd /path/to/Bitcoin-Core-Peer-Map
 ./da.sh
 ```
 
@@ -81,7 +81,7 @@ A headless machine has no local browser, so you need to access the dashboard fro
 On the Bitcoin Core machine (either directly or via SSH), start the dashboard:
 
 ```bash
-cd /path/to/MBCore-Dashboard
+cd /path/to/Bitcoin-Core-Peer-Map
 ./da.sh
 ```
 
@@ -150,7 +150,7 @@ ssh -L 58333:127.0.0.1:58333 user@headless-machine-ip
 Then on the headless machine (via that SSH session):
 
 ```bash
-cd /path/to/MBCore-Dashboard
+cd /path/to/Bitcoin-Core-Peer-Map
 ./da.sh
 ```
 
@@ -196,13 +196,19 @@ The tunnel forwards your local port 58333 to the headless machine's port 58333. 
 
 ## Prerequisites
 
-The script auto-checks for these, but you need:
+The script auto-checks for these and **offers to install missing dependencies automatically**:
 
 - `bitcoind` running
 - `bitcoin-cli` available
 - `python3` (3.8+), `jq`, `curl`, `sqlite3`
 
 The Python packages (fastapi, uvicorn, etc.) are installed automatically into a virtual environment.
+
+**Ubuntu/Debian users:** If `python3-venv` isn't installed, the script will detect this and offer to install it for you. Just press `y` when prompted.
+
+**First run taking a while?** The script needs to set up a Python virtual environment and install packages. This only happens once - subsequent runs are much faster.
+
+For more details on what happens during first run, see the [First Run](README.md#first-run) section in the README.
 
 ---
 
