@@ -2403,9 +2403,13 @@ async function fetchCliInfo() {
 }
 
 // Update the permanent add command display
-function updatePermanentAddCommand() {
+function updatePermanentAddCommand(address) {
     const cmdEl = document.getElementById('connect-permanent-cmd');
+    const confEl = document.getElementById('connect-conf-note');
     if (!cmdEl || !cliInfo) return;
+
+    // Use provided address or placeholder
+    const addrDisplay = address && address.trim() ? address.trim() : '<address>';
 
     // Build command without the full path (just bitcoin-cli)
     let cmd = 'bitcoin-cli';
@@ -2415,8 +2419,13 @@ function updatePermanentAddCommand() {
     if (cliInfo.conf) {
         cmd += ` -conf=${cliInfo.conf}`;
     }
-    cmd += ' addnode "<address>" add';
+    cmd += ` addnode "${addrDisplay}" add`;
     cmdEl.textContent = cmd;
+
+    // Update the conf note too
+    if (confEl) {
+        confEl.textContent = `addnode=${addrDisplay}`;
+    }
 }
 
 // Connect to a peer
@@ -2593,6 +2602,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (e.key === 'Enter') {
                 connectPeer(addressInput.value);
             }
+        });
+
+        // Update CLI command and conf note as user types
+        addressInput.addEventListener('input', (e) => {
+            updatePermanentAddCommand(e.target.value);
         });
 
         // Copy to clipboard button
