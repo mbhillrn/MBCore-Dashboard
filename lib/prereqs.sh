@@ -225,7 +225,8 @@ create_venv() {
                 fi
             else
                 echo ""
-                echo "No problem. To continue later, install it yourself:"
+                echo "Unable to continue without the required packages."
+                echo "May install manually with:"
                 echo "  sudo apt install $pkg_name"
                 echo ""
                 echo "Then run this program again."
