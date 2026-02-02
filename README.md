@@ -14,6 +14,47 @@ A lightweight real-time monitoring dashboard for Bitcoin Core nodes that visuali
 
 **Requires:** Bitcoin Core (`bitcoind`) installed and running on your system.
 
+---
+
+## Table of Contents
+
+- [Tested On / Compatibility](#tested-on--compatibility)
+- [Why?](#why)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [First Run](#first-run)
+- [How To Access The Dashboard](#how-to-access-the-dashboard)
+- [Firewall Configuration](#firewall-configuration)
+- [Dependencies](#dependencies)
+- [How It Works](#how-it-works)
+- [Main Menu Options](#main-menu-options)
+- [Usage Tips](#usage-tips)
+- [Project Structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+- [Support](#support)
+
+---
+
+## Tested On / Compatibility
+
+**Tested and works out of the box:**
+- Ubuntu 22.04, 24.04
+- Linux Mint
+- Debian
+
+**Should work with minor adjustments:**
+- Fedora, Arch Linux (Python venv is included by default, but if issues occur, the script will guide you)
+
+**May need additional configuration:**
+- Docker-based Bitcoin Core setups
+- Other Linux distributions
+- Non-standard Bitcoin Core installations
+
+If you're running a less common setup and run into issues, please [open an issue on GitHub](https://github.com/mbhillrn/Bitcoin-Core-Peer-Map/issues). If you know your way around your system, you can likely get it working - and your feedback helps us improve compatibility for everyone.
+
+---
+
 ## Why?
 
 Running a Bitcoin node is more enjoyable when you can see your peers across the globe. Traditional monitoring solutions like Grafana require complex setup and configuration. MBCore Dashboard provides instant visualization with zero configuration beyond pointing it at your node.
@@ -62,6 +103,77 @@ The script will:
 
 ---
 
+## First Run
+
+On first run, the script automatically handles setup. Here's what you might see:
+
+### Python Virtual Environment Setup
+
+The dashboard uses a Python virtual environment to keep its packages isolated. If you don't have one yet:
+
+```
+Checking your python...
+⚠ No virtual environment found
+? Setup virtual environment and install packages? [y/N] y
+```
+
+### Ubuntu/Debian: Missing python3-venv
+
+Ubuntu and Debian require an extra package for Python virtual environments. If it's not installed, you'll see:
+
+```
+Python said:
+
+The virtual environment was not created successfully because ensurepip is not
+available...
+
+We can fix this for you!
+
+On Ubuntu/Debian systems, Python needs an extra package to create
+virtual environments. We can install it now.
+
+? Install python3.12-venv now? [y/N] y
+```
+
+Just press `y` and enter your password - the script handles the rest.
+
+### Recovering from Incomplete Installation
+
+If a previous installation was interrupted, the script detects this and offers to reset:
+
+```
+MBCore Dashboard virtual environment needs to be reset
+
+We found an existing MBCore Dashboard virtual environment, but it appears
+to be incomplete (possibly from a previous installation that didn't finish).
+
+This only affects the ./venv folder inside this project directory.
+Your other Python environments are not affected.
+
+? Reset the MBCore Dashboard virtual environment? [y/N] y
+```
+
+### Successful Setup
+
+Once everything is installed, you'll see:
+
+```
+✓ Virtual environment created
+✓ Pip upgraded
+✓ Installed rich
+✓ Installed requests
+✓ Installed fastapi
+✓ Installed uvicorn
+✓ Installed jinja2
+✓ Installed sse_starlette
+
+** All packages installed successfully!! **
+```
+
+After this, the script proceeds to detect your Bitcoin Core installation.
+
+---
+
 ## How To Access The Dashboard
 
 ### Scenarios:
@@ -78,7 +190,7 @@ The script will:
 This is the easiest case. On the machine running Bitcoin Core:
 
 ```bash
-cd /path/to/MBCore-Dashboard
+cd /path/to/Bitcoin-Core-Peer-Map
 ./da.sh
 ```
 
@@ -104,7 +216,7 @@ A headless machine has no local browser, so you need to access the dashboard fro
 On the Bitcoin Core machine (either directly or via SSH), start the dashboard:
 
 ```bash
-cd /path/to/MBCore-Dashboard
+cd /path/to/Bitcoin-Core-Peer-Map
 ./da.sh
 ```
 
@@ -164,7 +276,7 @@ ssh -L 58333:127.0.0.1:58333 user@headless-machine-ip
 Then on the headless machine (via that SSH session):
 
 ```bash
-cd /path/to/MBCore-Dashboard
+cd /path/to/Bitcoin-Core-Peer-Map
 ./da.sh
 ```
 
@@ -436,7 +548,7 @@ The **in/out** column (available via Configure) shows simple direction badges:
 ## Project Structure
 
 ```
-MBCore-Dashboard/
+Bitcoin-Core-Peer-Map/
 ├── da.sh              # Main entry point
 ├── lib/               # Shell libraries (UI, config, prereqs)
 ├── scripts/           # Detection scripts

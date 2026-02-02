@@ -85,25 +85,188 @@ has_sudo() {
 # VENV FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Check if venv exists and is valid
+# Check if venv directory exists at all
+venv_dir_exists() {
+    [[ -d "$VENV_DIR" ]]
+}
+
+# Check if venv is actually functional (pip can run)
+venv_is_healthy() {
+    [[ -d "$VENV_DIR" ]] && "$VENV_DIR/bin/pip" --version &>/dev/null
+}
+
+# Check if venv exists and is valid (has both python3 and pip)
+# This is for backward compatibility - use venv_is_healthy for robust checks
 venv_exists() {
-    [[ -d "$VENV_DIR" && -f "$VENV_DIR/bin/python3" ]]
+    venv_is_healthy
+}
+
+# Check for broken venv and offer to reset it
+# Returns: 0 if venv is healthy or was reset, 1 if user declined reset
+check_venv_health() {
+    # No venv directory at all - that's fine, we'll create one
+    if ! venv_dir_exists; then
+        return 0
+    fi
+
+    # Venv exists and is healthy - great!
+    if venv_is_healthy; then
+        return 0
+    fi
+
+    # Directory exists but venv is broken/incomplete
+    echo ""
+    echo -e "${T_WARN}${BOLD}MBCore Dashboard virtual environment needs to be reset${RST}"
+    echo ""
+    echo "We found an existing MBCore Dashboard virtual environment, but it appears"
+    echo "to be incomplete (possibly from a previous installation that didn't finish)."
+    echo ""
+    echo "This only affects the ./venv folder inside this project directory."
+    echo "Your other Python environments are not affected."
+    echo ""
+
+    if prompt_yn "Reset the MBCore Dashboard virtual environment?"; then
+        msg_info "Removing incomplete virtual environment..."
+        rm -rf "$VENV_DIR"
+        if [[ -d "$VENV_DIR" ]]; then
+            msg_err "Could not remove the virtual environment directory"
+            echo "Please try removing it manually: rm -rf $VENV_DIR"
+            return 1
+        fi
+        msg_ok "Ready to create fresh virtual environment"
+        return 0
+    else
+        echo ""
+        echo "To continue, you'll need to reset it yourself:"
+        echo "  rm -rf $VENV_DIR"
+        echo ""
+        echo "Then run this program again."
+        return 1
+    fi
 }
 
 # Create virtual environment
 create_venv() {
     msg_info "Creating virtual environment in ./venv/..."
 
-    if python3 -m venv "$VENV_DIR" 2>/dev/null; then
+    # Try to create venv and capture any error
+    local venv_error
+    venv_error=$(python3 -m venv "$VENV_DIR" 2>&1)
+    local venv_result=$?
+
+    if [[ $venv_result -eq 0 ]]; then
         msg_ok "Virtual environment created"
         return 0
-    else
-        msg_err "Failed to create virtual environment"
-        msg_info "You may need to install python3-venv:"
-        msg_info "  Debian/Ubuntu: sudo apt install python3-venv"
-        msg_info "  Fedora: sudo dnf install python3-virtualenv"
-        return 1
     fi
+
+    # Couldn't create venv - show what happened and try to help
+    echo ""
+    echo -e "${T_SUCCESS}${BOLD}Python said:${RST}"
+    echo ""
+    echo -e "${T_DIM}$venv_error${RST}" | head -10
+    echo ""
+
+    # Detect system type
+    local pkg_mgr
+    pkg_mgr=$(detect_pkg_manager)
+
+    case "$pkg_mgr" in
+        debian)
+            # Ubuntu/Debian/Mint/Pop!_OS etc - this is the common case
+            # These systems require a separate package for venv
+            echo -e "${T_SUCCESS}${BOLD}We can fix this for you!${RST}"
+            echo ""
+            echo "On Ubuntu/Debian systems, Python needs an extra package to create"
+            echo "virtual environments. We can install it now."
+            echo ""
+
+            # Get the right package name for their Python version
+            local py_version
+            py_version=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)
+            local pkg_name
+            if [[ -n "$py_version" ]]; then
+                pkg_name="python${py_version}-venv"
+            else
+                pkg_name="python3-venv"
+            fi
+
+            if prompt_yn "Install $pkg_name now?"; then
+                local install_cmd="apt install -y $pkg_name"
+
+                # Add sudo if needed
+                if ! is_root && command -v sudo &>/dev/null; then
+                    install_cmd="sudo $install_cmd"
+                elif ! is_root; then
+                    msg_err "Need admin privileges to install packages"
+                    echo ""
+                    echo "Please run this command yourself, then try again:"
+                    echo "  sudo apt install $pkg_name"
+                    return 1
+                fi
+
+                msg_info "Installing $pkg_name..."
+                if eval "$install_cmd"; then
+                    msg_ok "Installed $pkg_name"
+                    # Try creating venv again
+                    msg_info "Retrying..."
+                    if python3 -m venv "$VENV_DIR" 2>/dev/null; then
+                        msg_ok "Virtual environment created"
+                        return 0
+                    else
+                        msg_err "Still failed - something else may be wrong with your Python installation"
+                        return 1
+                    fi
+                else
+                    msg_err "Installation failed"
+                    echo ""
+                    echo "You can try running it yourself:"
+                    echo "  sudo apt install $pkg_name"
+                    return 1
+                fi
+            else
+                echo ""
+                echo "No problem. To continue later, install it yourself:"
+                echo "  sudo apt install $pkg_name"
+                echo ""
+                echo "Then run this program again."
+                return 1
+            fi
+            ;;
+
+        fedora|arch)
+            # Fedora and Arch include venv in their base Python package
+            # If we're here, something unexpected is wrong
+            local system_name="Fedora"
+            [[ "$pkg_mgr" == "arch" ]] && system_name="Arch Linux"
+
+            echo -e "${T_WARN}${BOLD}This is unexpected on $system_name${RST}"
+            echo ""
+            echo "Python usually includes virtual environment support by default on $system_name."
+            echo ""
+            echo "One thing to try is repairing Python using your system tools."
+            if [[ "$pkg_mgr" == "fedora" ]]; then
+                echo "(example: sudo dnf reinstall python3)"
+            else
+                echo "(example: sudo pacman -S python)"
+            fi
+            echo ""
+            echo -e "If the problem persists, please open an issue on GitHub with the"
+            echo -e "error message shown above."
+            return 1
+            ;;
+
+        *)
+            # Unknown system - just show the error and give general guidance
+            echo -e "${T_WARN}${BOLD}We couldn't detect your system type${RST}"
+            echo ""
+            echo "You need to install Python virtual environment support."
+            echo "Search for: \"python3 venv install\" + your operating system name"
+            echo ""
+            echo "If you think this should work automatically, please open an issue"
+            echo "on GitHub with the error message shown above."
+            return 1
+            ;;
+    esac
 }
 
 # Get the pip command for venv
@@ -139,11 +302,21 @@ install_venv_pkg() {
     esac
 
     msg_info "Installing $pkg..."
-    if "$pip_cmd" install "$install_name" --quiet 2>/dev/null; then
+
+    # Capture pip output so we can show errors if it fails
+    local pip_output
+    pip_output=$("$pip_cmd" install "$install_name" 2>&1)
+    local pip_result=$?
+
+    if [[ $pip_result -eq 0 ]]; then
         msg_ok "Installed $pkg"
         return 0
     else
         msg_err "Failed to install $pkg"
+        echo ""
+        echo -e "${T_DIM}pip said:${RST}"
+        echo "$pip_output" | tail -15
+        echo ""
         return 1
     fi
 }
@@ -352,7 +525,10 @@ run_prereq_check() {
     fi
 
     # Check Python packages using venv
-    run_python_check
+    if ! run_python_check; then
+        echo ""
+        return 1
+    fi
 
     echo ""
     return 0
@@ -379,6 +555,12 @@ run_python_check() {
 
     echo ""
     echo -e "${T_DIM}Checking your python...${RST}"
+
+    # Check for broken venv first and offer to reset if needed
+    if ! check_venv_health; then
+        PYTHON_MODE="none"
+        return 1
+    fi
 
     # Check if venv exists
     if ! venv_exists; then
@@ -489,7 +671,7 @@ run_python_check() {
         local terminal_failed=0
         if [[ $need_terminal -eq 1 ]]; then
             echo ""
-            echo -e "Installing terminal packages..."
+            echo -e "Installing core Python packages..."
             echo -e "${T_DIM}───────────────────────────────────${RST}"
             for item in "${missing_terminal[@]}"; do
                 IFS='|' read -r pkg desc <<< "$item"
@@ -500,7 +682,7 @@ run_python_check() {
         fi
 
         if [[ $terminal_failed -eq 1 ]]; then
-            msg_err "Failed to install required terminal packages"
+            msg_err "Failed to install required Python packages"
             msg_err "The program cannot run without these packages"
             PYTHON_MODE="none"
             return 1
@@ -524,7 +706,7 @@ run_python_check() {
             echo ""
             msg_warn "Some web packages failed to install"
             msg_warn "Web dashboard will not be available"
-            msg_ok "Terminal mode will work normally"
+            msg_ok "Core functionality will work normally"
             PYTHON_MODE="terminal"
             return 0
         fi
@@ -540,7 +722,7 @@ run_python_check() {
         echo ""
         echo "Options:"
         echo "  1) Install packages (recommended)"
-        echo "  2) Continue without web dashboard (terminal only)"
+        echo "  2) Continue without web dashboard (limited functionality)"
         echo "  3) Exit"
         echo ""
         echo -en "${T_PROMPT}Choose [1-3]: ${RST}"
@@ -554,12 +736,12 @@ run_python_check() {
                 ;;
             2)
                 if [[ $need_terminal -eq 1 ]]; then
-                    msg_err "Terminal packages are required even for terminal-only mode"
+                    msg_err "Core Python packages are required for all modes"
                     msg_err "Please install packages or exit"
                     PYTHON_MODE="none"
                     return 1
                 fi
-                msg_warn "Continuing in terminal-only mode"
+                msg_warn "Continuing without web dashboard"
                 msg_warn "Web dashboard will not be available"
                 PYTHON_MODE="terminal"
                 return 0
