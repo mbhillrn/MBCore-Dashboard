@@ -94,52 +94,55 @@ venv_exists() {
 create_venv() {
     msg_info "Creating virtual environment in ./venv/..."
 
-    if python3 -m venv "$VENV_DIR" 2>/dev/null; then
+    # Try to create venv and capture any error
+    local venv_error
+    venv_error=$(python3 -m venv "$VENV_DIR" 2>&1)
+    local venv_result=$?
+
+    if [[ $venv_result -eq 0 ]]; then
         msg_ok "Virtual environment created"
         return 0
-    else
-        msg_err "Failed to create virtual environment"
-        msg_info "This usually means python3-venv is not installed"
+    fi
 
-        # Detect system and offer to install
-        local pkg_mgr
-        pkg_mgr=$(detect_pkg_manager)
+    # Failed - show what happened
+    msg_err "Failed to create virtual environment"
+    echo ""
+    echo -e "${T_DIM}Python said:${RST}"
+    echo "$venv_error" | head -10
+    echo ""
 
-        local install_cmd=""
-        local pkg_name=""
+    # Detect system type
+    local pkg_mgr
+    pkg_mgr=$(detect_pkg_manager)
 
-        case "$pkg_mgr" in
-            debian)
-                # Try to detect Python version for correct package name
-                local py_version
-                py_version=$(python3 --version 2>/dev/null | grep -oP '\d+\.\d+' | head -1)
-                if [[ -n "$py_version" ]]; then
-                    pkg_name="python${py_version}-venv"
-                else
-                    pkg_name="python3-venv"
-                fi
-                install_cmd="apt install -y $pkg_name"
-                ;;
-            fedora)
-                pkg_name="python3-virtualenv"
-                install_cmd="dnf install -y $pkg_name"
-                ;;
-            arch)
-                # Arch includes venv in the python package, but may need python-virtualenv
-                pkg_name="python-virtualenv"
-                install_cmd="pacman -S --noconfirm $pkg_name"
-                ;;
-        esac
-
-        if [[ -n "$install_cmd" ]]; then
+    case "$pkg_mgr" in
+        debian)
+            # Ubuntu/Debian/Mint/Pop!_OS etc - this is the common case
+            # These systems require a separate package for venv
+            echo -e "On Ubuntu/Debian systems, Python needs an extra package to create virtual environments."
             echo ""
+
+            # Get the right package name for their Python version
+            local py_version
+            py_version=$(python3 --version 2>/dev/null | grep -oP '\d+\.\d+' | head -1)
+            local pkg_name
+            if [[ -n "$py_version" ]]; then
+                pkg_name="python${py_version}-venv"
+            else
+                pkg_name="python3-venv"
+            fi
+
             if prompt_yn "Install $pkg_name now?"; then
+                local install_cmd="apt install -y $pkg_name"
+
                 # Add sudo if needed
                 if ! is_root && command -v sudo &>/dev/null; then
                     install_cmd="sudo $install_cmd"
                 elif ! is_root; then
-                    msg_err "Need root privileges to install packages"
-                    msg_info "Run: sudo $install_cmd"
+                    msg_err "Need admin privileges to install packages"
+                    echo ""
+                    echo "Please run this command yourself, then try again:"
+                    echo "  sudo apt install $pkg_name"
                     return 1
                 fi
 
@@ -147,30 +150,64 @@ create_venv() {
                 if eval "$install_cmd"; then
                     msg_ok "Installed $pkg_name"
                     # Try creating venv again
-                    msg_info "Retrying virtual environment creation..."
+                    msg_info "Retrying..."
                     if python3 -m venv "$VENV_DIR" 2>/dev/null; then
                         msg_ok "Virtual environment created"
                         return 0
                     else
-                        msg_err "Still failed to create virtual environment"
+                        msg_err "Still failed - something else may be wrong with your Python installation"
                         return 1
                     fi
                 else
-                    msg_err "Failed to install $pkg_name"
+                    msg_err "Installation failed"
+                    echo ""
+                    echo "You can try running it yourself:"
+                    echo "  sudo apt install $pkg_name"
                     return 1
                 fi
             else
-                msg_info "You can install it manually:"
-                msg_info "  sudo $install_cmd"
+                echo ""
+                echo "To continue, you'll need to install it yourself:"
+                echo "  sudo apt install $pkg_name"
+                echo ""
+                echo "Then run this program again."
                 return 1
             fi
-        else
-            msg_info "You may need to install python3-venv:"
-            msg_info "  Debian/Ubuntu: sudo apt install python3-venv"
-            msg_info "  Fedora: sudo dnf install python3-virtualenv"
+            ;;
+
+        fedora|arch)
+            # Fedora and Arch include venv in their base Python package
+            # If we're here, something unexpected is wrong
+            local system_name="Fedora"
+            [[ "$pkg_mgr" == "arch" ]] && system_name="Arch Linux"
+
+            echo -e "This error is unexpected on $system_name - Python usually includes"
+            echo -e "virtual environment support by default."
+            echo ""
+            echo -e "Your Python installation may need to be reinstalled or repaired."
+            if [[ "$pkg_mgr" == "fedora" ]]; then
+                echo -e "You could try: sudo dnf reinstall python3"
+            else
+                echo -e "You could try: sudo pacman -S python"
+            fi
+            echo ""
+            echo -e "If the problem persists, please open an issue on GitHub with the"
+            echo -e "error message shown above."
             return 1
-        fi
-    fi
+            ;;
+
+        *)
+            # Unknown system - just show the error and give general guidance
+            echo -e "We couldn't automatically fix this on your system."
+            echo ""
+            echo -e "You need to install Python virtual environment support."
+            echo -e "Search for: \"python3 venv install\" + your operating system name"
+            echo ""
+            echo -e "If you think this should work automatically, please open an issue"
+            echo -e "on GitHub with the error message shown above."
+            return 1
+            ;;
+    esac
 }
 
 # Get the pip command for venv
