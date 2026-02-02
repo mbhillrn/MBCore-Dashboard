@@ -85,9 +85,64 @@ has_sudo() {
 # VENV FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Check if venv directory exists at all
+venv_dir_exists() {
+    [[ -d "$VENV_DIR" ]]
+}
+
+# Check if venv is actually functional (pip can run)
+venv_is_healthy() {
+    [[ -d "$VENV_DIR" ]] && "$VENV_DIR/bin/pip" --version &>/dev/null
+}
+
 # Check if venv exists and is valid (has both python3 and pip)
+# This is for backward compatibility - use venv_is_healthy for robust checks
 venv_exists() {
-    [[ -d "$VENV_DIR" && -f "$VENV_DIR/bin/python3" && -f "$VENV_DIR/bin/pip" ]]
+    venv_is_healthy
+}
+
+# Check for broken venv and offer to reset it
+# Returns: 0 if venv is healthy or was reset, 1 if user declined reset
+check_venv_health() {
+    # No venv directory at all - that's fine, we'll create one
+    if ! venv_dir_exists; then
+        return 0
+    fi
+
+    # Venv exists and is healthy - great!
+    if venv_is_healthy; then
+        return 0
+    fi
+
+    # Directory exists but venv is broken/incomplete
+    echo ""
+    echo -e "${T_WARN}${BOLD}MBCore Dashboard virtual environment needs to be reset${RST}"
+    echo ""
+    echo "We found an existing MBCore Dashboard virtual environment, but it appears"
+    echo "to be incomplete (possibly from a previous installation that didn't finish)."
+    echo ""
+    echo "This only affects the ./venv folder inside this project directory."
+    echo "Your other Python environments are not affected."
+    echo ""
+
+    if prompt_yn "Reset the MBCore Dashboard virtual environment?"; then
+        msg_info "Removing incomplete virtual environment..."
+        rm -rf "$VENV_DIR"
+        if [[ -d "$VENV_DIR" ]]; then
+            msg_err "Could not remove the virtual environment directory"
+            echo "Please try removing it manually: rm -rf $VENV_DIR"
+            return 1
+        fi
+        msg_ok "Ready to create fresh virtual environment"
+        return 0
+    else
+        echo ""
+        echo "To continue, you'll need to reset it yourself:"
+        echo "  rm -rf $VENV_DIR"
+        echo ""
+        echo "Then run this program again."
+        return 1
+    fi
 }
 
 # Create virtual environment
@@ -500,6 +555,12 @@ run_python_check() {
 
     echo ""
     echo -e "${T_DIM}Checking your python...${RST}"
+
+    # Check for broken venv first and offer to reset if needed
+    if ! check_venv_health; then
+        PYTHON_MODE="none"
+        return 1
+    fi
 
     # Check if venv exists
     if ! venv_exists; then
