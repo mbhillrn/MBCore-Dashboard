@@ -1603,20 +1603,20 @@ def main():
     url_lan = f"http://{lan_ip}:{port}"
     url_local = f"http://127.0.0.1:{port}"
     print(f"  {C_BOLD}{C_YELLOW}Opening your browser on the SAME computer this program is running on:{C_RESET}")
-    print(f"      {C_GREEN}{url_local}{C_RESET}")
+    print(f"      {C_CYAN}{url_local}{C_RESET}")
     print("")
     print(f"  {C_BOLD}{C_YELLOW}Opening your browser on ANOTHER computer on your local network:{C_RESET}")
     print(f"    {C_BOLD}{C_YELLOW}Option A{C_RESET} – Direct network access {C_BOLD}{C_YELLOW}(recommended){C_RESET}")
-    print(f"      {C_GREEN}{url_lan}{C_RESET}  {C_DIM}<- auto-detected node IP{C_RESET}")
+    print(f"      {C_CYAN}{url_lan}{C_RESET}  {C_DIM}<- auto-detected node IP{C_RESET}")
     # Show firewall warning if detected
     if firewall_active and firewall_name:
         print(f"      {C_RED}Firewall detected ({firewall_name}): may need configuring for port {port}{C_RESET}")
     print(f"      {C_DIM}(If you use a firewall, it may need to be configured.{C_RESET}")
     print(f"      {C_DIM} Please see the README or run the Firewall Helper Tool{C_RESET}")
-    print(f"      {C_DIM} from the main menu (Option 4).){C_RESET}")
+    print(f"      {C_DIM} from the main menu (Option 3).){C_RESET}")
     print("")
     print(f"    {C_BOLD}{C_YELLOW}Option B{C_RESET} – SSH tunnel (advanced, see README)")
-    print(f"      {C_GREEN}{url_local}{C_RESET}")
+    print(f"      {C_CYAN}{url_local}{C_RESET}")
     print("")
     print(f"{C_BLUE}{'─' * line_w}{C_RESET}")
     print(f"  {C_RED}🔴 The README has been created to guide you through this process.{C_RESET}")

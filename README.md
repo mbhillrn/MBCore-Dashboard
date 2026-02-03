@@ -407,32 +407,25 @@ All detected settings are saved locally for fast startup on subsequent runs.
 
 ### Database
 
-MBCore Dashboard uses two SQLite databases for different purposes:
-
-**Geo-Location Cache** (`./data/geo.db`):
+**Geo/IP Database** (`./data/geo.db`):
 - Caches full API responses from ip-api.com to minimize API calls
 - Stores: geographic location, ISP, AS info, timezone, currency, and more
 - Shared across sessions - data persists even after restart
-- Check integrity and reset from the main menu (**g) Geo Database Settings**)
+- Optionally downloads from the [Bitcoin Node GeoIP Dataset](https://github.com/mbhillrn/Bitcoin-Node-GeoIP-Dataset) for instant lookups
+- Check integrity, reset, and configure from the main menu (**g) Geo/IP Database**)
 - First-run prompts you to enable/disable database caching
-
-**Terminal UI Cache** (`./data/peers.db`):
-- Used by the legacy terminal UI mode
-- Stores connection history and first-seen timestamps
-- Can be reset from the main menu (**3) Reset Database**)
 
 ## Main Menu Options
 
 1. **Enter MBCore Web Dashboard** - Launch the web-based dashboard with interactive map
 2. **Reset Config** - Clear saved Bitcoin Core configuration
-3. **Reset Database** - Clear the terminal UI peer cache (peers.db)
-4. **Firewall Helper** - Configure firewall for network access
+3. **Firewall Helper** - Configure firewall for network access
 
 Additional options:
+- **g) Geo/IP Database** - Manage the geo-location cache database (integrity check, reset, advanced options)
 - **d) Rerun Detection** - Re-detect Bitcoin Core settings
 - **m) Manual Settings** - Manually enter Bitcoin Core paths
 - **p) Port Settings** - Change the dashboard port (default: 58333). Useful if port 58333 is in use or you prefer a different port. This setting persists across reboots and updates.
-- **g) Geo Database Settings** - Manage the geo-location cache database (integrity check, reset, advanced options)
 - **u) Update** - Update to the latest version (shown when an update is available)
 
 ## Usage Tips
@@ -476,7 +469,7 @@ Click the **Blockchain** button in the Node Status panel header to view detailed
 - **Sync Progress** - Visual progress bar showing verified blocks vs. total headers
 - **Block Height** - Current height of the local blockchain
 - **Best Block Hash** - Hash of the tip of the best valid chain
-- **Difficulty** - Current mining difficulty target (in scientific notation)
+- **Difficulty** - Current mining difficulty target (human-readable, e.g. "141.7 T" - hover for full number)
 - **Median Time** - Median timestamp of the last 11 blocks
 - **Chain Work** - Total proof-of-work in the active chain
 - **Initial Block Download** - Whether the node is still syncing

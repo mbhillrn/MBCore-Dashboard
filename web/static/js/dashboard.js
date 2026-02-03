@@ -2210,6 +2210,27 @@ function formatMempoolInfo(data, btcPrice) {
 // BLOCKCHAIN INFO POPUP
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Format difficulty as human-readable (e.g. 141.7 T)
+function formatDifficulty(diff) {
+    if (!diff) return 'N/A';
+    const units = ['', ' K', ' M', ' G', ' T', ' P', ' E'];
+    let unitIndex = 0;
+    let val = diff;
+    while (val >= 1000 && unitIndex < units.length - 1) {
+        val /= 1000;
+        unitIndex++;
+    }
+    return val.toFixed(1) + units[unitIndex];
+}
+
+// Get sync progress color class based on percentage
+function getSyncColorClass(pct) {
+    if (pct >= 99.99) return 'green';
+    if (pct >= 75) return 'highlight';   // yellow
+    if (pct >= 50) return 'orange';
+    return 'red';
+}
+
 // Format blockchain info for display
 function formatBlockchainInfo(data) {
     const b = data;
@@ -2221,45 +2242,46 @@ function formatBlockchainInfo(data) {
         <span class="mempool-stat-value highlight">${b.chain}</span>
     </div>`;
 
-    // Sync Progress with progress bar
+    // Sync Progress with progress bar and color coding
     const syncPercent = b.verificationprogress ? (b.verificationprogress * 100) : 100;
     const syncPct = syncPercent.toFixed(2);
-    const isSynced = syncPercent >= 99.99;
-    const syncClass = isSynced ? 'green' : 'highlight';
+    const syncColorClass = getSyncColorClass(syncPercent);
 
     // Calculate progress bar (20 chars total)
     const filledChars = Math.round((syncPercent / 100) * 20);
     const emptyChars = 20 - filledChars;
-    const progressBar = '█'.repeat(filledChars) + '░'.repeat(emptyChars);
+    const progressBar = '\u2588'.repeat(filledChars) + '\u2591'.repeat(emptyChars);
 
-    // Headers count (estimated total blocks on network)
+    // Headers count (total blocks on network)
     const headersCount = b.headers || b.blocks;
 
     html += `<div class="mempool-stat-row">
         <span class="mempool-stat-label" title="How much of the blockchain has been verified locally">Sync Progress</span>
         <div>
-            <span class="mempool-stat-value ${syncClass}">${b.blocks.toLocaleString()} / ${headersCount.toLocaleString()}</span>
-            <div class="mempool-stat-sub" style="font-family: monospace;">[${progressBar}] ${syncPct}%</div>
+            <span class="mempool-stat-value"><span class="${syncColorClass}">${b.blocks.toLocaleString()}</span> / <span class="green">${headersCount.toLocaleString()}</span></span>
+            <div class="mempool-stat-sub ${syncColorClass}" style="font-family: monospace;">[${progressBar}] ${syncPct}%</div>
         </div>
     </div>`;
 
     // Block Height
     html += `<div class="mempool-stat-row">
         <span class="mempool-stat-label" title="The height of the most recent block in the local chain">Block Height</span>
-        <span class="mempool-stat-value">${b.blocks.toLocaleString()}</span>
+        <span class="mempool-stat-value green">${b.blocks.toLocaleString()}</span>
     </div>`;
 
-    // Best Block Hash
+    // Best Block Hash - truncated with hover for full
+    const hashShort = b.bestblockhash ? (b.bestblockhash.slice(0, 12) + '...') : 'N/A';
     html += `<div class="mempool-stat-row">
         <span class="mempool-stat-label" title="The hash of the tip of the best valid chain">Best Block Hash</span>
-        <span class="mempool-stat-value" style="font-size: 0.75em; word-break: break-all;">${b.bestblockhash}</span>
+        <span class="mempool-stat-value" title="${b.bestblockhash}" style="cursor: help;">${hashShort}</span>
     </div>`;
 
-    // Difficulty
-    const diffFormatted = b.difficulty ? b.difficulty.toExponential(3) : 'N/A';
+    // Difficulty - human readable with hover for full number
+    const diffHuman = formatDifficulty(b.difficulty);
+    const diffFull = b.difficulty ? b.difficulty.toLocaleString(undefined, {maximumFractionDigits: 0}) : 'N/A';
     html += `<div class="mempool-stat-row">
         <span class="mempool-stat-label" title="Current mining difficulty target">Difficulty</span>
-        <span class="mempool-stat-value">${diffFormatted}</span>
+        <span class="mempool-stat-value" title="${diffFull}" style="cursor: help;">${diffHuman}</span>
     </div>`;
 
     // Median Time
@@ -2267,16 +2289,17 @@ function formatBlockchainInfo(data) {
         const medianDate = new Date(b.mediantime * 1000);
         const medianStr = medianDate.toLocaleString();
         html += `<div class="mempool-stat-row">
-            <span class="mempool-stat-label" title="Median time of the last 11 blocks">Median Time</span>
+            <span class="mempool-stat-label" title="Median timestamp of the last 11 blocks - used for time-based consensus rules">Median Time</span>
             <span class="mempool-stat-value">${medianStr}</span>
         </div>`;
     }
 
-    // Chain Work
+    // Chain Work - truncated with hover for full
     if (b.chainwork) {
+        const cwShort = b.chainwork.slice(0, 16) + '...';
         html += `<div class="mempool-stat-row">
-            <span class="mempool-stat-label" title="Total amount of work in active chain">Chain Work</span>
-            <span class="mempool-stat-value" style="font-size: 0.75em; word-break: break-all;">${b.chainwork}</span>
+            <span class="mempool-stat-label" title="Total amount of proof-of-work in active chain (hex)">Chain Work</span>
+            <span class="mempool-stat-value" title="${b.chainwork}" style="cursor: help; font-size: 0.85em;">${cwShort}</span>
         </div>`;
     }
 

@@ -139,18 +139,17 @@ show_menu() {
     echo -e "     ${T_DIM}- Instructions on access viewable on the next page!${RST}"
     echo -e "  ${T_INFO}2)${RST} Reset MBCore Config"
     echo -e "     ${T_DIM}- Clear saved configuration${RST}"
-    echo -e "  ${T_INFO}3)${RST} Reset MBCore Database"
-    echo -e "     ${T_DIM}- Clear peer geo-location cache${RST}"
-    echo -e "  ${T_INFO}4)${RST} Firewall Helper"
+    echo -e "  ${T_INFO}3)${RST} Firewall Helper"
     echo -e "     ${T_DIM}- Configure firewall for network access${RST}"
     echo ""
-    echo -e "  ${T_SECONDARY}g)${RST} Geo/IP Database Settings"
-    echo -e "     ${T_DIM}- Configure IP location database${RST}"
-    echo -e "  ${T_SECONDARY}d)${RST} Rerun Detection    ${T_DIM}- Re-detect Bitcoin Core settings${RST}"
-    echo -e "  ${T_SECONDARY}m)${RST} Manual Settings    ${T_DIM}- Manually enter Bitcoin Core settings${RST}"
-    echo -e "  ${T_SECONDARY}p)${RST} Port Settings      ${T_DIM}- Change dashboard port (current: ${MBTC_WEB_PORT:-58333})${RST}"
+    echo -e "  ${T_DIM}─────────────────────────────────────────────────────────────${RST}"
+    echo ""
+    echo -e "  ${T_SECONDARY}g)${RST} Geo/IP Database     ${T_DIM}- Configure IP location database${RST}"
+    echo -e "  ${T_SECONDARY}d)${RST} Rerun Detection     ${T_DIM}- Re-detect Bitcoin Core settings${RST}"
+    echo -e "  ${T_SECONDARY}m)${RST} Manual Settings     ${T_DIM}- Manually enter Bitcoin Core settings${RST}"
+    echo -e "  ${T_SECONDARY}p)${RST} Port Settings       ${T_DIM}- Change dashboard port (current: ${MBTC_WEB_PORT:-58333})${RST}"
     if [[ "$UPDATE_AVAILABLE" -eq 1 ]]; then
-        echo -e "  ${T_WARN}u)${RST} Update             ${T_DIM}- Update to v${LATEST_VERSION}${RST}"
+        echo -e "  ${T_WARN}u)${RST} Update              ${T_DIM}- Update to v${LATEST_VERSION}${RST}"
     fi
     echo ""
     echo -e "  ${T_ERROR}q)${RST} Quit"
@@ -179,6 +178,18 @@ run_web_dashboard() {
     # Check geo API availability (non-blocking if it's down)
     if ! check_geo_api_available; then
         show_geo_api_warning
+    fi
+
+    # Check for database updates if auto-update is enabled
+    local geo_auto_update
+    geo_auto_update=$(get_config "GEO_DB_AUTO_UPDATE" "false")
+    if [[ "$geo_auto_update" == "true" ]]; then
+        msg_info "Checking for Geo/IP Database updates..."
+        # TODO: Implement actual download from Bitcoin Node GeoIP Dataset
+        sleep 1
+        msg_warn "Bitcoin Node GeoIP Dataset is not currently available"
+        echo -e "  ${T_DIM}Your local database will cache peers you discover.${RST}"
+        sleep 1
     fi
 
     # Run web server using venv
@@ -1199,10 +1210,7 @@ main() {
             2)
                 reset_config
                 ;;
-            3)
-                reset_database
-                ;;
-            4|f|F)
+            3|f|F)
                 firewall_helper
                 ;;
             g|G)
