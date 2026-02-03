@@ -43,7 +43,7 @@ GEO_API_FIELDS = "status,continent,continentCode,country,countryCode,region,regi
 RECENT_WINDOW = 20     # Seconds for recent changes
 
 # Geo database repository URL
-GEO_DB_REPO_URL = "https://raw.githubusercontent.com/mbhillrn/MBCore-GeoDatabase/main/geo.db"
+GEO_DB_REPO_URL = "https://raw.githubusercontent.com/mbhillrn/Bitcoin-Node-GeoIP-Dataset/main/geo.db"
 
 # Default port for web dashboard (can be configured)
 DEFAULT_WEB_PORT = 58333
@@ -52,8 +52,8 @@ DEFAULT_WEB_PORT = 58333
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_DIR = SCRIPT_DIR.parent
 DATA_DIR = PROJECT_DIR / 'data'
+TMP_DIR = DATA_DIR / 'tmp'
 CONFIG_FILE = DATA_DIR / 'config.conf'
-DB_FILE = DATA_DIR / 'peers.db'  # Legacy terminal UI database (unused)
 GEO_DB_FILE = DATA_DIR / 'geo.db'  # Geolocation cache database
 STATIC_DIR = SCRIPT_DIR / 'static'
 TEMPLATES_DIR = SCRIPT_DIR / 'templates'
@@ -257,9 +257,21 @@ config = Config()
 geo_db_enabled = False
 geo_db_auto_update = True
 
+def cleanup_tmp_dir():
+    """Remove any leftover temp files from interrupted downloads"""
+    if TMP_DIR.exists():
+        for f in TMP_DIR.iterdir():
+            try:
+                f.unlink()
+            except Exception:
+                pass
+
+
 def init_geo_database():
     """Initialize the geolocation database with full schema"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    TMP_DIR.mkdir(parents=True, exist_ok=True)
+    cleanup_tmp_dir()
     conn = sqlite3.connect(GEO_DB_FILE)
     conn.execute('''
         CREATE TABLE IF NOT EXISTS geo_cache (
@@ -290,6 +302,7 @@ def init_geo_database():
     ''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_geo_country ON geo_cache(countryCode)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_geo_updated ON geo_cache(last_updated)')
+    conn.execute('PRAGMA journal_mode=WAL')
     conn.commit()
     conn.close()
 
@@ -312,20 +325,29 @@ def check_geo_db_integrity() -> tuple:
 
 
 def get_geo_db_stats() -> dict:
-    """Get statistics about the geo database"""
+    """Get statistics about the geo database with status"""
+    base = {'status': 'disabled', 'entries': 0, 'size_mb': 0, 'last_updated': None, 'oldest_updated': None, 'db_path': str(GEO_DB_FILE)}
+    if not geo_db_enabled:
+        return base
     if not GEO_DB_FILE.exists():
-        return {'entries': 0, 'size_mb': 0, 'last_updated': None}
+        base['status'] = 'not_found'
+        return base
     try:
         conn = sqlite3.connect(GEO_DB_FILE)
         cursor = conn.execute('SELECT COUNT(*) FROM geo_cache')
         count = cursor.fetchone()[0]
         cursor = conn.execute('SELECT MAX(last_updated) FROM geo_cache')
         last = cursor.fetchone()[0]
+        cursor = conn.execute('SELECT MIN(last_updated) FROM geo_cache WHERE last_updated > 0')
+        oldest = cursor.fetchone()[0]
         conn.close()
         size_mb = GEO_DB_FILE.stat().st_size / (1024 * 1024)
-        return {'entries': count, 'size_mb': round(size_mb, 2), 'last_updated': last}
-    except:
-        return {'entries': 0, 'size_mb': 0, 'last_updated': None}
+        base.update({'status': 'ok', 'entries': count, 'size_mb': round(size_mb, 2), 'last_updated': last, 'oldest_updated': oldest})
+        return base
+    except Exception as e:
+        base['status'] = 'error'
+        base['error'] = str(e)
+        return base
 
 
 def get_geo_from_db(ip: str) -> Optional[dict]:
@@ -349,7 +371,7 @@ def save_geo_to_db(ip: str, data: dict):
         return
     try:
         now = int(time.time())
-        conn = sqlite3.connect(GEO_DB_FILE)
+        conn = sqlite3.connect(GEO_DB_FILE, timeout=5)
         conn.execute('''
             INSERT INTO geo_cache (
                 ip, continent, continentCode, country, countryCode,
@@ -1034,7 +1056,8 @@ async def api_info(currency: str = "USD"):
         'last_block': None,
         'blockchain': None,
         'network_scores': None,
-        'system_stats': None
+        'system_stats': None,
+        'geo_db_stats': None
     }
 
     # 1. Bitcoin price from Coinbase API
@@ -1167,6 +1190,20 @@ async def api_info(currency: str = "USD"):
         }
     except Exception as e:
         print(f"System stats fetch error: {e}")
+
+    # 6. Geo database stats (always returned so frontend can show status)
+    try:
+        stats = get_geo_db_stats()
+        if stats.get('entries', 0) > 0:
+            oldest_age_days = None
+            if stats.get('oldest_updated'):
+                oldest_age_days = int((time.time() - stats['oldest_updated']) / 86400)
+            stats['oldest_age_days'] = oldest_age_days
+        stats['auto_lookup'] = geo_db_enabled
+        stats['auto_update'] = geo_db_auto_update
+        result['geo_db_stats'] = stats
+    except Exception:
+        result['geo_db_stats'] = {'status': 'error', 'error': 'Failed to query database'}
 
     return result
 
@@ -1428,6 +1465,56 @@ async def api_peer_connect(request: Request):
         return {'success': False, 'error': str(e)}
 
 
+@app.post("/api/geodb/update")
+async def api_geodb_update():
+    """Download and merge the latest geo database from the server"""
+    if not geo_db_enabled:
+        return {'success': False, 'message': 'Geo database is disabled'}
+    try:
+        TMP_DIR.mkdir(parents=True, exist_ok=True)
+        tmp_path = TMP_DIR / 'geo_download.db'
+        # Download remote database
+        resp = requests.get(GEO_DB_REPO_URL, timeout=60, stream=True)
+        if resp.status_code != 200:
+            return {'success': False, 'message': f'Download failed (HTTP {resp.status_code})'}
+        with open(tmp_path, 'wb') as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+        # Validate it's a real SQLite database with the expected table
+        try:
+            tmp_conn = sqlite3.connect(tmp_path)
+            remote_rows = tmp_conn.execute('SELECT * FROM geo_cache').fetchall()
+            col_names = [desc[0] for desc in tmp_conn.execute('SELECT * FROM geo_cache LIMIT 0').description]
+            tmp_conn.close()
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            return {'success': False, 'message': 'Downloaded file is not a valid geo database'}
+        remote_count = len(remote_rows)
+        if remote_count == 0:
+            tmp_path.unlink(missing_ok=True)
+            return {'success': False, 'message': 'Remote database is empty'}
+        if not GEO_DB_FILE.exists():
+            # No local DB — just use the downloaded one
+            tmp_path.rename(GEO_DB_FILE)
+            return {'success': True, 'message': f'Downloaded database ({remote_count} entries)'}
+        # Merge: read remote rows into memory, insert into local DB
+        tmp_path.unlink(missing_ok=True)
+        placeholders = ','.join(['?'] * len(col_names))
+        conn = sqlite3.connect(GEO_DB_FILE, timeout=5)
+        before = conn.execute('SELECT COUNT(*) FROM geo_cache').fetchone()[0]
+        conn.executemany(f"INSERT OR IGNORE INTO geo_cache ({','.join(col_names)}) VALUES ({placeholders})", remote_rows)
+        conn.commit()
+        total = conn.execute('SELECT COUNT(*) FROM geo_cache').fetchone()[0]
+        conn.close()
+        new_count = total - before
+        if new_count > 0:
+            return {'success': True, 'message': f'+{new_count} new entries ({total} total)'}
+        else:
+            return {'success': True, 'message': f'Already up to date ({total} entries)'}
+    except Exception as e:
+        return {'success': False, 'message': str(e)}
+
+
 @app.get("/api/cli-info")
 async def api_cli_info():
     """Get the CLI command info for display to user"""
@@ -1623,8 +1710,6 @@ def main():
     print(f"  {C_RED}🔴 Please review it if this is your first time running MBCore or need to troubleshoot.{C_RESET}")
     print(f"{C_BLUE}{'─' * line_w}{C_RESET}")
     print(f"  Press {C_PINK}Ctrl+C{C_RESET} to stop the dashboard (press twice to force)")
-    print(f"{C_BLUE}{'─' * line_w}{C_RESET}")
-    print(f"  {C_BOLD}{C_YELLOW}Support (btc):{C_RESET} {C_GREEN}bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5{C_RESET}")
     print(f"{C_BLUE}{'═' * line_w}{C_RESET}")
     print("")
 

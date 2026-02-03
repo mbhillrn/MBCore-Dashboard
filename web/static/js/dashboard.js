@@ -2074,6 +2074,77 @@ function updateInfoPanel(data) {
                 : '-';
         }
     }
+
+    // Geo DB Status (inside System card)
+    const geodbStatusEl = document.getElementById('info-geodb-status');
+    const geodbInfoBtn = document.getElementById('geodb-info-btn');
+    const geodbDropdownRows = document.getElementById('geodb-dropdown-rows');
+    const geodbUpdateBtn = document.getElementById('geodb-update-btn');
+    const g = data.geo_db_stats;
+    if (g && geodbStatusEl) {
+        // Store latest stats for dropdown
+        window._geodbStats = g;
+        if (g.status === 'ok' && g.entries > 0) {
+            geodbStatusEl.textContent = g.entries.toLocaleString() + ' entries';
+            geodbStatusEl.className = 'geodb-status-badge';
+            geodbStatusEl.title = '';
+            if (geodbInfoBtn) geodbInfoBtn.style.display = '';
+            if (geodbUpdateBtn) geodbUpdateBtn.style.display = '';
+        } else if (g.status === 'ok' && g.entries === 0) {
+            geodbStatusEl.textContent = '0 entries';
+            geodbStatusEl.className = 'geodb-status-badge';
+            if (geodbInfoBtn) geodbInfoBtn.style.display = '';
+            if (geodbUpdateBtn) geodbUpdateBtn.style.display = '';
+        } else if (g.status === 'disabled') {
+            geodbStatusEl.textContent = 'Disabled';
+            geodbStatusEl.className = 'geodb-status-badge';
+            if (geodbInfoBtn) geodbInfoBtn.style.display = 'none';
+            if (geodbUpdateBtn) geodbUpdateBtn.style.display = 'none';
+        } else if (g.status === 'not_found') {
+            geodbStatusEl.textContent = 'Not Found';
+            geodbStatusEl.className = 'geodb-status-badge geodb-status-warn';
+            if (geodbInfoBtn) geodbInfoBtn.style.display = '';
+            if (geodbUpdateBtn) geodbUpdateBtn.style.display = '';
+        } else if (g.status === 'error') {
+            geodbStatusEl.textContent = 'Error';
+            geodbStatusEl.className = 'geodb-status-badge geodb-status-error';
+            geodbStatusEl.title = g.error || 'Unknown error';
+            if (geodbInfoBtn) geodbInfoBtn.style.display = '';
+            if (geodbUpdateBtn) geodbUpdateBtn.style.display = 'none';
+        }
+        // Build dropdown detail rows
+        if (geodbDropdownRows) {
+            let html = '';
+            if (g.status === 'ok' || g.status === 'not_found' || g.status === 'error') {
+                if (g.entries > 0) {
+                    html += `<div class="geodb-detail-row"><span>Entries</span><span>${g.entries.toLocaleString()}</span></div>`;
+                    html += `<div class="geodb-detail-row"><span>Size</span><span>${g.size_mb} MB</span></div>`;
+                    if (g.oldest_age_days != null) {
+                        html += `<div class="geodb-detail-row"><span>Oldest</span><span>${g.oldest_age_days}d</span></div>`;
+                    }
+                }
+                if (g.db_path) {
+                    html += `<div class="geodb-detail-row"><span>Location</span><span class="geodb-path">${g.db_path}</span></div>`;
+                }
+                if (g.status === 'error' && g.error) {
+                    html += `<div class="geodb-detail-row geodb-error-row"><span>Error</span><span>${g.error}</span></div>`;
+                }
+                if (g.status === 'not_found') {
+                    html += `<div class="geodb-detail-row geodb-warn-row"><span>Status</span><span>Database file not found</span></div>`;
+                }
+            } else if (g.status === 'disabled') {
+                html += `<div class="geodb-detail-row"><span>Status</span><span>Disabled in settings</span></div>`;
+            }
+            // Settings
+            html += `<div class="geodb-detail-divider"></div>`;
+            const lookupOn = g.auto_lookup ? 'On' : 'Off';
+            const updateOn = g.auto_update ? 'On' : 'Off';
+            const dimClass = 'geodb-setting-off';
+            html += `<div class="geodb-detail-row"><span>Auto-lookup</span><span class="${g.auto_lookup ? '' : dimClass}">${lookupOn}</span></div>`;
+            html += `<div class="geodb-detail-row"><span>Auto-update</span><span class="${g.auto_update ? '' : dimClass}">${updateOn}</span></div>`;
+            geodbDropdownRows.innerHTML = html;
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2887,5 +2958,66 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
+    }
+
+    // BTC address click-to-copy
+    document.querySelectorAll('.btc-copy').forEach(el => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => {
+            const addr = el.textContent;
+            navigator.clipboard.writeText(addr).then(() => {
+                el.setAttribute('title', 'Copied!');
+                setTimeout(() => {
+                    el.setAttribute('title', 'Click to copy');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        });
+    });
+
+    // Geo DB dropdown toggle
+    const geodbInfoBtn = document.getElementById('geodb-info-btn');
+    const geodbDropdown = document.getElementById('geodb-dropdown');
+    if (geodbInfoBtn && geodbDropdown) {
+        geodbInfoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            geodbDropdown.classList.toggle('active');
+        });
+        // Close on outside click
+        document.addEventListener('click', (e) => {
+            if (!geodbDropdown.contains(e.target) && !geodbInfoBtn.contains(e.target)) {
+                geodbDropdown.classList.remove('active');
+            }
+        });
+    }
+
+    // Geo DB update button
+    const geodbUpdateBtn = document.getElementById('geodb-update-btn');
+    const geodbUpdateMsg = document.getElementById('geodb-update-msg');
+    if (geodbUpdateBtn) {
+        geodbUpdateBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            geodbUpdateBtn.disabled = true;
+            geodbUpdateBtn.textContent = 'Updating...';
+            if (geodbUpdateMsg) geodbUpdateMsg.textContent = '';
+            try {
+                const resp = await fetch(`${API_BASE}/api/geodb/update`, { method: 'POST' });
+                const data = await resp.json();
+                if (geodbUpdateMsg) {
+                    geodbUpdateMsg.textContent = data.message || (data.success ? 'Done' : 'Failed');
+                    geodbUpdateMsg.className = 'geodb-update-msg ' + (data.success ? 'geodb-msg-ok' : 'geodb-msg-err');
+                }
+                // Refresh info panel to pick up new stats
+                if (data.success) fetchInfoPanel();
+            } catch (err) {
+                if (geodbUpdateMsg) {
+                    geodbUpdateMsg.textContent = 'Network error';
+                    geodbUpdateMsg.className = 'geodb-update-msg geodb-msg-err';
+                }
+            }
+            geodbUpdateBtn.disabled = false;
+            geodbUpdateBtn.textContent = 'Update';
+        });
     }
 });

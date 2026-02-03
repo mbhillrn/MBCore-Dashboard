@@ -359,12 +359,46 @@ run_manual_config() {
 
 reset_config() {
     echo ""
-    if prompt_yn "Are you sure you want to clear saved configuration?"; then
-        clear_config
-        msg_ok "Configuration cleared"
-    else
-        msg_info "Cancelled"
-    fi
+    echo -e "${T_SECONDARY}${BOLD}Reset Options${RST}"
+    echo ""
+    echo -e "  ${T_INFO}1)${RST} Reset settings only (keep database)"
+    echo -e "     ${T_DIM}Clears configuration, keeps your geo/IP database intact${RST}"
+    echo ""
+    echo -e "  ${T_WARN}2)${RST} Reset everything (settings + database)"
+    echo -e "     ${T_DIM}Clears configuration AND deletes the geo/IP database${RST}"
+    echo ""
+    echo -e "  ${T_DIM}b)${RST} Back"
+    echo ""
+    echo -en "${T_DIM}Choice:${RST} "
+    read -r reset_choice
+
+    case "$reset_choice" in
+        1)
+            echo ""
+            if prompt_yn "Reset all settings? (database will be kept)"; then
+                clear_config
+                msg_ok "Configuration cleared (database preserved)"
+            else
+                msg_info "Cancelled"
+            fi
+            ;;
+        2)
+            echo ""
+            if prompt_yn "Reset settings AND delete the geo/IP database?"; then
+                clear_config
+                rm -f "$MBTC_DIR/data/geo.db"
+                msg_ok "Configuration and database cleared"
+            else
+                msg_info "Cancelled"
+            fi
+            ;;
+        b|B|"")
+            return
+            ;;
+        *)
+            msg_warn "Invalid option"
+            ;;
+    esac
     echo ""
     echo -en "${T_DIM}Press Enter to continue...${RST}"
     read -r
@@ -597,8 +631,8 @@ show_geo_db_settings() {
         echo -e "  ${T_INFO}5)${RST} Check database integrity"
         echo -e "     ${T_DIM}(Verify database file is not corrupted)${RST}"
         echo ""
-        echo -e "  ${T_SECONDARY}6)${RST} [ADVANCED] Database Verification"
-        echo -e "     ${T_DIM}(Re-verify stored IP data against API)${RST}"
+        echo -e "  ${T_SECONDARY}6)${RST} [ADVANCED] Purge old entries"
+        echo -e "     ${T_DIM}(Remove entries older than a specified number of days)${RST}"
     else
         echo -e "  ${T_OK}1)${RST} Enable geolocation database"
         echo -e "     ${T_DIM}(Recommended - provides faster location lookups)${RST}"
@@ -687,7 +721,7 @@ show_geo_db_settings() {
             ;;
         6)
             if [[ "$geo_db_enabled" == "true" ]]; then
-                show_advanced_verification
+                show_advanced_purge
             fi
             ;;
         0|"")
@@ -761,76 +795,95 @@ show_first_run_db_setup() {
     read -r
 }
 
-show_advanced_verification() {
+show_advanced_purge() {
+    local geo_db_file="$MBTC_DIR/data/geo.db"
+
     clear
     echo ""
     echo -e "${T_WARN}${BOLD}═══════════════════════════════════════════════════════════════${RST}"
-    echo -e "${T_WARN}${BOLD}  [ADVANCED] Database Verification${RST}"
+    echo -e "${T_WARN}${BOLD}  [ADVANCED] Purge Old Entries${RST}"
     echo -e "${T_WARN}${BOLD}═══════════════════════════════════════════════════════════════${RST}"
     echo ""
-    echo -e "  ${T_DIM}This feature re-verifies stored IP geolocation data,${RST}"
-    echo -e "  ${T_DIM}which is unnecessary in almost all circumstances.${RST}"
-    echo -e "  ${T_DIM}Geolocation data rarely changes.${RST}"
+    echo -e "  ${T_DIM}Remove entries from the geo database that haven't been${RST}"
+    echo -e "  ${T_DIM}updated in a specified number of days.${RST}"
     echo ""
-    echo -e "  ${T_WARN}NOT RECOMMENDED for regular use.${RST}"
-    echo ""
-    echo -e "  ${T_DIM}Current Status: DISABLED${RST}"
-    echo ""
+
+    if [[ -f "$geo_db_file" ]]; then
+        local entries oldest_ts now age_days
+        entries=$(sqlite3 "$geo_db_file" "SELECT COUNT(*) FROM geo_cache" 2>/dev/null || echo "0")
+        oldest_ts=$(sqlite3 "$geo_db_file" "SELECT MIN(last_updated) FROM geo_cache" 2>/dev/null || echo "")
+        now=$(date +%s)
+
+        echo -e "  ${T_INFO}Current entries:${RST} ${entries}"
+        if [[ -n "$oldest_ts" && "$oldest_ts" != "NULL" && "$oldest_ts" -gt 0 ]] 2>/dev/null; then
+            age_days=$(( (now - oldest_ts) / 86400 ))
+            echo -e "  ${T_INFO}Oldest entry:${RST} ${age_days} days old"
+        fi
+        echo ""
+    else
+        echo -e "  ${T_DIM}No database file found.${RST}"
+        echo ""
+        echo -en "${T_DIM}Press Enter to go back...${RST}"
+        read -r
+        show_geo_db_settings
+        return
+    fi
+
     echo -e "${T_DIM}─────────────────────────────────────────────────────────────────${RST}"
     echo ""
-    echo -e "  ${T_OK}1)${RST} Disable verification (RECOMMENDED)"
-    echo ""
-    echo -e "  ${T_WARN}2)${RST} Run verification now (BATCH MODE)"
-    echo -e "     ${T_DIM}Rate: 20 requests/minute${RST}"
-    echo -e "     ${T_DIM}Warning: May take DAYS depending on database size${RST}"
-    echo -e "     ${T_DIM}Processes entire database regardless of entry age${RST}"
-    echo ""
-    echo -e "  ${T_WARN}3)${RST} Enable background verification (PASSIVE MODE)"
-    echo -e "     ${T_DIM}Rate: 10 requests/minute (max)${RST}"
-    echo -e "     ${T_DIM}Only runs when API is idle (5+ seconds since last call)${RST}"
-    echo -e "     ${T_DIM}Only checks entries older than 30 days${RST}"
-    echo ""
-    echo -e "  ${T_SECONDARY}0)${RST} Back"
-    echo ""
+    echo -en "  ${T_INFO}Purge entries older than how many days?${RST} (or 'b' to go back): "
+    read -r purge_days
 
-    read -r -p "Enter choice: " choice
+    if [[ "$purge_days" == "b" || "$purge_days" == "B" || -z "$purge_days" ]]; then
+        show_geo_db_settings
+        return
+    fi
 
-    case "$choice" in
-        1)
-            msg_ok "Verification disabled"
-            sleep 1
-            show_geo_db_settings
-            ;;
-        2|3)
-            echo ""
-            echo -e "${T_WARN}${BOLD}═══════════════════════════════════════════════════════════════${RST}"
-            echo -e "${T_WARN}${BOLD}  WARNING${RST}"
-            echo -e "${T_WARN}${BOLD}═══════════════════════════════════════════════════════════════${RST}"
-            echo ""
-            echo -e "  ${T_DIM}This feature is intended for testing and development${RST}"
-            echo -e "  ${T_DIM}purposes. It is not meant for regular use and may risk${RST}"
-            echo -e "  ${T_DIM}corrupting your database.${RST}"
-            echo ""
-            echo -e "  ${T_WARN}Are you absolutely sure?${RST}"
-            echo ""
-            read -r -p "  Type \"IM SURE\" to continue, or press Enter to cancel: " confirm
+    # Validate input is a number
+    if [[ ! "$purge_days" =~ ^[0-9]+$ ]]; then
+        msg_err "Please enter a valid number"
+        sleep 1
+        show_advanced_purge
+        return
+    fi
 
-            if [[ "$confirm" == "IM SURE" ]]; then
-                msg_info "Verification would be enabled here (not yet implemented)"
-                sleep 2
-            else
-                msg_info "Cancelled"
-                sleep 1
-            fi
-            show_geo_db_settings
-            ;;
-        0|"")
-            show_geo_db_settings
-            ;;
-        *)
-            show_advanced_verification
-            ;;
-    esac
+    if [[ "$purge_days" -eq 0 ]]; then
+        msg_err "Cannot purge entries 0 days old (that would delete everything)"
+        sleep 1
+        show_advanced_purge
+        return
+    fi
+
+    local cutoff_ts=$(( $(date +%s) - (purge_days * 86400) ))
+    local to_delete
+    to_delete=$(sqlite3 "$geo_db_file" "SELECT COUNT(*) FROM geo_cache WHERE last_updated < $cutoff_ts" 2>/dev/null || echo "0")
+
+    if [[ "$to_delete" -eq 0 ]]; then
+        echo ""
+        msg_info "No entries older than ${purge_days} days found"
+        echo ""
+        echo -en "${T_DIM}Press Enter to continue...${RST}"
+        read -r
+        show_geo_db_settings
+        return
+    fi
+
+    echo ""
+    echo -e "  ${T_WARN}This will delete ${to_delete} entries older than ${purge_days} days.${RST}"
+    echo ""
+    if prompt_yn "Continue?"; then
+        sqlite3 "$geo_db_file" "DELETE FROM geo_cache WHERE last_updated < $cutoff_ts" 2>/dev/null
+        local remaining
+        remaining=$(sqlite3 "$geo_db_file" "SELECT COUNT(*) FROM geo_cache" 2>/dev/null || echo "0")
+        msg_ok "Purged ${to_delete} entries (${remaining} remaining)"
+    else
+        msg_info "Cancelled"
+    fi
+
+    echo ""
+    echo -en "${T_DIM}Press Enter to continue...${RST}"
+    read -r
+    show_geo_db_settings
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1200,41 +1253,6 @@ main() {
         msg_info "No MBCore configuration found. Running Bitcoin Core detection..."
         sleep 1
         run_detection
-    else
-        # Config exists - ask if it's correct on first run
-        show_status
-
-        echo ""
-        echo -e "${T_WARN}?${RST} These are the detected settings. Are they correct?"
-        echo ""
-        echo -e "  ${T_INFO}1)${RST} Yes, continue to main menu"
-        echo -e "  ${T_INFO}2)${RST} No, run detection again"
-        echo -e "  ${T_INFO}3)${RST} No, enter settings manually"
-        echo -e "  ${T_ERROR}q)${RST} Quit"
-        echo ""
-
-        echo -en "${T_DIM}Choice [1-3/q]:${RST} "
-        read -r startup_choice
-
-        case "$startup_choice" in
-            1)
-                save_config
-                msg_ok "Configuration saved"
-                ;;
-            2)
-                run_detection
-                ;;
-            3)
-                run_manual_config
-                ;;
-            q|Q)
-                msg_info "Goodbye!"
-                exit 0
-                ;;
-            *)
-                msg_ok "Using existing configuration"
-                ;;
-        esac
     fi
 
     # Wait for update check to complete (with timeout)

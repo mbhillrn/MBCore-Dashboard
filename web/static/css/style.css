@@ -96,6 +96,19 @@ body {
     margin-top: 4px;
 }
 
+.credits-link {
+    color: var(--text-dim);
+    text-decoration: none;
+}
+
+.credits-link:hover {
+    text-decoration: underline;
+}
+
+.btc-copy {
+    cursor: pointer;
+}
+
 .header-info {
     display: flex;
     flex-direction: column;
@@ -471,7 +484,7 @@ body {
 .system-stats {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 3px;
 }
 
 .system-row {
@@ -484,18 +497,176 @@ body {
     font-size: 12px;
     color: var(--text-dim);
     font-weight: 500;
-    width: 32px;
+    width: 40px;
 }
 
 .system-value {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
 }
 
 .system-unit {
     font-size: 12px;
     color: var(--text-dim);
+}
+
+.system-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 2px 0;
+}
+
+/* Geo DB section in System card */
+.geodb-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.geodb-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.geodb-info-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+    min-width: 60px;
+}
+
+.geodb-status-badge {
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.geodb-status-badge.geodb-status-warn {
+    color: var(--accent-yellow);
+}
+
+.geodb-status-badge.geodb-status-error {
+    color: var(--accent-red);
+    cursor: help;
+}
+
+/* Geo DB dropdown */
+.geodb-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    z-index: 1000;
+    min-width: 220px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.geodb-dropdown.active {
+    display: block;
+}
+
+.geodb-dropdown-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.geodb-detail-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 2px 0;
+    color: var(--text-secondary);
+}
+
+.geodb-detail-row span:first-child {
+    color: var(--text-dim);
+}
+
+.geodb-path {
+    font-size: 10px;
+    word-break: break-all;
+    max-width: 160px;
+    text-align: right;
+}
+
+.geodb-error-row span:last-child {
+    color: var(--accent-red);
+}
+
+.geodb-warn-row span:last-child {
+    color: var(--accent-yellow);
+}
+
+.geodb-detail-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 4px 0;
+}
+
+.geodb-setting-off {
+    color: var(--text-dim);
+}
+
+.geodb-dropdown-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 8px 0;
+}
+
+.geodb-dropdown-note {
+    font-size: 9px;
+    color: var(--text-dim);
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+
+.geodb-update-btn {
+    width: 100%;
+    padding: 5px 0;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--accent-blue);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.geodb-update-btn:hover {
+    background: rgba(88, 166, 255, 0.15);
+    border-color: var(--accent-blue);
+}
+
+.geodb-update-btn:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.geodb-update-msg {
+    font-size: 11px;
+    margin-top: 6px;
+    text-align: center;
+    min-height: 16px;
+}
+
+.geodb-msg-ok {
+    color: var(--accent-green);
+}
+
+.geodb-msg-err {
+    color: var(--accent-red);
 }
 
 /* BTC Card */

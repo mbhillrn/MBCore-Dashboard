@@ -15,7 +15,7 @@
             <div class="header-title">
                 <h1 class="logo-text">MBCore Dashboard <span class="version">v{{ version }}</span></h1>
                 <span class="subtitle">Peer info, map, and tools for Bitcoin Core</span>
-                <span class="credits">Created by mbhillrn | Support (btc): bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span>
+                <span class="credits">Created by <a href="https://github.com/mbhillrn" target="_blank" rel="noopener" class="credits-link">mbhillrn</a> | Support (btc): <span class="btc-copy" id="header-btc-copy" title="Click to copy">bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span></span>
             </div>
             <div class="header-info">
                 <span class="status-indicator" id="status-indicator"></span>
@@ -185,7 +185,7 @@
                 </div>
 
                 <!-- System Card -->
-                <div class="status-card card-system" id="card-system">
+                <div class="status-card card-system" id="card-system" style="position:relative;">
                     <div class="card-label">System</div>
                     <div class="system-stats">
                         <div class="system-row">
@@ -198,6 +198,21 @@
                             <span class="system-value" id="info-mem">-</span>
                             <span class="system-unit">%</span>
                         </div>
+                        <div class="system-divider" id="geodb-divider"></div>
+                        <div class="geodb-section">
+                            <div class="geodb-section-label">Geo/IP DB</div>
+                            <button class="mempool-info-btn geodb-info-btn" id="geodb-info-btn" title="View Geo/IP Database Info">Info</button>
+                            <span class="geodb-status-badge" id="info-geodb-status"></span>
+                        </div>
+                    </div>
+                    <!-- Geo DB Dropdown -->
+                    <div class="geodb-dropdown" id="geodb-dropdown">
+                        <div class="geodb-dropdown-title">Geo/IP Database</div>
+                        <div class="geodb-dropdown-rows" id="geodb-dropdown-rows"></div>
+                        <div class="geodb-dropdown-divider"></div>
+                        <div class="geodb-dropdown-note">Check the server for any peer locations you don't already have. Your existing data will not be removed or modified.</div>
+                        <button class="geodb-update-btn" id="geodb-update-btn">Update</button>
+                        <div class="geodb-update-msg" id="geodb-update-msg"></div>
                     </div>
                 </div>
 
@@ -487,7 +502,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <span>MBCore Dashboard v{{ version }} | created by mbhillrn | Support (btc): bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span>
+            <span>MBCore Dashboard v{{ version }} | created by <a href="https://github.com/mbhillrn" target="_blank" rel="noopener" class="credits-link">mbhillrn</a> | Support (btc): <span class="btc-copy" id="footer-btc-copy" title="Click to copy">bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span></span>
             <span id="refresh-timer">Refreshing in 10s</span>
         </footer>
     </div>

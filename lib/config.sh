@@ -11,7 +11,6 @@ MBTC_BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export MBTC_CONFIG_DIR="$MBTC_BASE_DIR/data"
 export MBTC_DATA_DIR="$MBTC_BASE_DIR/data"
 export MBTC_CACHE_FILE="$MBTC_CONFIG_DIR/config.conf"
-export MBTC_DB_FILE="$MBTC_DATA_DIR/peers.db"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENVIRONMENT VARIABLES (MBTC_ prefix)
