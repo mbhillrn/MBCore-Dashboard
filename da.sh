@@ -143,9 +143,9 @@ show_menu() {
     echo -e "     ${T_DIM}- Clear peer geo-location cache${RST}"
     echo -e "  ${T_INFO}4)${RST} Firewall Helper"
     echo -e "     ${T_DIM}- Configure firewall for network access${RST}"
-    echo -e "  ${T_INFO}5)${RST} Geolocation Database"
-    echo -e "     ${T_DIM}- Configure IP location database settings${RST}"
     echo ""
+    echo -e "  ${T_SECONDARY}g)${RST} Geo/IP Database Settings"
+    echo -e "     ${T_DIM}- Configure IP location database${RST}"
     echo -e "  ${T_SECONDARY}d)${RST} Rerun Detection    ${T_DIM}- Re-detect Bitcoin Core settings${RST}"
     echo -e "  ${T_SECONDARY}m)${RST} Manual Settings    ${T_DIM}- Manually enter Bitcoin Core settings${RST}"
     echo -e "  ${T_SECONDARY}p)${RST} Port Settings      ${T_DIM}- Change dashboard port (current: ${MBTC_WEB_PORT:-58333})${RST}"
@@ -354,7 +354,7 @@ reset_database() {
     if [[ -f "$db_path" ]]; then
         if prompt_yn "Are you sure you want to clear the geolocation database?"; then
             rm -f "$db_path"
-            msg_ok "Geolocation database cleared"
+            msg_ok "Geo/IP database cleared"
         else
             msg_info "Cancelled"
         fi
@@ -409,23 +409,23 @@ show_geo_api_warning() {
 
     if [[ "$geo_db_enabled" == "true" ]]; then
         # Database IS enabled
-        echo -e "  ${T_OK}MBCore Geolocation Database: ENABLED ✓${RST}"
+        echo -e "  ${T_OK}Geo/IP Database: ENABLED ✓${RST}"
         echo ""
         echo -e "  ${T_DIM}Your local database will be used for known addresses.${RST}"
         echo -e "  ${T_DIM}Newly discovered IP addresses will not be geolocated${RST}"
         echo -e "  ${T_DIM}until connection to the service is restored.${RST}"
         echo ""
-        echo -e "  ${T_DIM}Database settings: Settings → Geolocation Database${RST}"
+        echo -e "  ${T_DIM}Database settings: Geo/IP Database Settings (option g)${RST}"
     else
         # Database NOT enabled
         echo -e "  ${T_DIM}Without geolocation service access, peer locations${RST}"
         echo -e "  ${T_DIM}will be limited or unavailable.${RST}"
         echo ""
-        echo -e "  ${T_INFO}We strongly recommend enabling the MBCore Geolocation${RST}"
-        echo -e "  ${T_INFO}Database. This provides location data for known Bitcoin${RST}"
-        echo -e "  ${T_INFO}nodes and greatly improves your experience.${RST}"
+        echo -e "  ${T_INFO}We strongly recommend enabling the Geo/IP Database.${RST}"
+        echo -e "  ${T_INFO}This caches location data for known Bitcoin nodes${RST}"
+        echo -e "  ${T_INFO}and greatly improves performance.${RST}"
         echo ""
-        echo -e "  ${T_DIM}You can enable this in: Settings → Geolocation Database${RST}"
+        echo -e "  ${T_DIM}You can enable this in: Geo/IP Database Settings (option g)${RST}"
     fi
     echo ""
     echo -e "  ${T_SECONDARY}[R]${RST} Retry connection    ${T_SECONDARY}[Enter]${RST} Continue anyway"
@@ -465,9 +465,10 @@ show_geo_db_settings() {
     geo_db_auto_update=$(get_config "GEO_DB_AUTO_UPDATE" "true")
 
     clear
+    show_banner
     echo ""
     echo -e "${T_INFO}${BOLD}═══════════════════════════════════════════════════════════════${RST}"
-    echo -e "${T_INFO}${BOLD}  Geolocation Database Settings${RST}"
+    echo -e "${T_INFO}${BOLD}  Geo/IP Database Settings${RST}"
     echo -e "${T_INFO}${BOLD}═══════════════════════════════════════════════════════════════${RST}"
     echo ""
 
@@ -493,14 +494,15 @@ show_geo_db_settings() {
 
     # Menu options
     if [[ "$geo_db_enabled" == "true" ]]; then
-        echo -e "  ${T_INFO}1)${RST} Auto-update on dashboard start: ${T_SECONDARY}$([ "$geo_db_auto_update" == "true" ] && echo "YES" || echo "NO")${RST}"
-        echo -e "     ${T_DIM}(Downloads new entries, keeps your discovered IPs)${RST}"
+        local auto_status=$([ "$geo_db_auto_update" == "true" ] && echo "ON" || echo "OFF")
+        echo -e "  ${T_INFO}1)${RST} Toggle auto-update on start: ${T_SECONDARY}${auto_status}${RST}"
+        echo -e "     ${T_DIM}(Currently: ${auto_status} - Select 1 to toggle)${RST}"
         echo ""
         echo -e "  ${T_INFO}2)${RST} Update database now"
         echo -e "     ${T_DIM}(Manually fetch latest entries)${RST}"
         echo ""
         echo -e "  ${T_INFO}3)${RST} Reset database"
-        echo -e "     ${T_DIM}(Delete local data and re-download fresh)${RST}"
+        echo -e "     ${T_DIM}(Delete all cached data and start fresh)${RST}"
         echo ""
         echo -e "  ${T_WARN}4)${RST} Disable database"
         echo -e "     ${T_DIM}(Rely on API only - 1 lookup per 1.5 seconds)${RST}"
@@ -535,7 +537,7 @@ show_geo_db_settings() {
                 # Enable database
                 set_config "GEO_DB_ENABLED" "true"
                 set_config "GEO_DB_AUTO_UPDATE" "true"
-                msg_ok "Geolocation database enabled"
+                msg_ok "Geo/IP database enabled"
             fi
             sleep 1
             show_geo_db_settings
@@ -543,12 +545,11 @@ show_geo_db_settings() {
         2)
             if [[ "$geo_db_enabled" == "true" ]]; then
                 echo ""
-                msg_info "Downloading database update..."
-                echo -e "  ${T_WARN}Note: Repository not yet created - this will fail${RST}"
-                echo -e "  ${T_DIM}(This is expected for testing)${RST}"
+                msg_info "Checking for Bitcoin Node GeoIP Dataset..."
                 # TODO: Implement actual download
-                sleep 2
-                msg_err "Could not download database (repository not found)"
+                sleep 1
+                msg_warn "Bitcoin Node GeoIP Dataset is not currently available"
+                echo -e "  ${T_DIM}Your local database will still cache peers you discover.${RST}"
                 echo ""
                 echo -en "${T_DIM}Press Enter to continue...${RST}"
                 read -r
@@ -560,8 +561,7 @@ show_geo_db_settings() {
                 echo ""
                 if prompt_yn "Are you sure you want to reset the database?"; then
                     rm -f "$geo_db_file"
-                    msg_ok "Database reset"
-                    # TODO: Re-download from repo
+                    msg_ok "Database reset - will rebuild as you discover peers"
                 else
                     msg_info "Cancelled"
                 fi
@@ -572,7 +572,7 @@ show_geo_db_settings() {
         4)
             if [[ "$geo_db_enabled" == "true" ]]; then
                 set_config "GEO_DB_ENABLED" "false"
-                msg_ok "Geolocation database disabled"
+                msg_ok "Geo/IP database disabled"
                 sleep 1
                 show_geo_db_settings
             fi
@@ -622,22 +622,22 @@ show_first_run_db_setup() {
     fi
 
     clear
+    show_banner
     echo ""
     echo -e "${T_INFO}${BOLD}═══════════════════════════════════════════════════════════════${RST}"
-    echo -e "${T_INFO}${BOLD}  Geolocation Database Setup${RST}"
+    echo -e "${T_INFO}${BOLD}  Geo/IP Database Setup${RST}"
     echo -e "${T_INFO}${BOLD}═══════════════════════════════════════════════════════════════${RST}"
     echo ""
-    echo -e "  ${T_DIM}The MBCore Geolocation Database provides instant location${RST}"
-    echo -e "  ${T_DIM}data for known Bitcoin nodes. This reduces API calls and${RST}"
-    echo -e "  ${T_DIM}greatly improves performance.${RST}"
+    echo -e "  ${T_DIM}The Geo/IP Database caches location data for Bitcoin nodes.${RST}"
+    echo -e "  ${T_DIM}This reduces API calls and improves performance.${RST}"
     echo ""
     echo -e "  ${T_DIM}How would you like to manage the database?${RST}"
     echo ""
-    echo -e "    ${T_INFO}1)${RST} Download and keep updated"
-    echo -e "       ${T_DIM}(Updates automatically when you start the dashboard)${RST}"
+    echo -e "    ${T_INFO}1)${RST} Enable and keep updated"
+    echo -e "       ${T_DIM}(Recommended - fast lookups, auto-updates on start)${RST}"
     echo ""
-    echo -e "    ${T_INFO}2)${RST} Download once, then self-managed"
-    echo -e "       ${T_DIM}(Only adds new peers you discover yourself)${RST}"
+    echo -e "    ${T_INFO}2)${RST} Enable, self-managed"
+    echo -e "       ${T_DIM}(Only stores peers you discover yourself)${RST}"
     echo ""
     echo -e "    ${T_INFO}3)${RST} Don't use a database"
     echo -e "       ${T_DIM}(Rely on API only - limited to 1 lookup per 1.5 sec)${RST}"
@@ -650,32 +650,23 @@ show_first_run_db_setup() {
             set_config "GEO_DB_AUTO_UPDATE" "true"
             set_config "GEO_DB_CONFIGURED" "true"
             msg_ok "Database enabled with auto-updates"
-            msg_info "Attempting to download database..."
-            # TODO: Implement actual download
-            echo -e "  ${T_WARN}Note: Repository not yet created - download skipped${RST}"
-            sleep 2
             ;;
         2)
             set_config "GEO_DB_ENABLED" "true"
             set_config "GEO_DB_AUTO_UPDATE" "false"
             set_config "GEO_DB_CONFIGURED" "true"
             msg_ok "Database enabled (self-managed)"
-            msg_info "Attempting to download database..."
-            # TODO: Implement actual download
-            echo -e "  ${T_WARN}Note: Repository not yet created - download skipped${RST}"
-            sleep 2
             ;;
         3)
             set_config "GEO_DB_ENABLED" "false"
             set_config "GEO_DB_AUTO_UPDATE" "false"
             set_config "GEO_DB_CONFIGURED" "true"
             msg_info "Database disabled - using API only"
-            sleep 1
             ;;
     esac
 
     echo ""
-    echo -e "  ${T_DIM}You can change this anytime in: Geolocation Database (option 5)${RST}"
+    echo -e "  ${T_DIM}You can change this anytime via: Geo/IP Database Settings (option g)${RST}"
     echo ""
     echo -en "${T_DIM}Press Enter to continue...${RST}"
     read -r
@@ -1206,7 +1197,7 @@ main() {
             4|f|F)
                 firewall_helper
                 ;;
-            5|g|G)
+            g|G)
                 show_geo_db_settings
                 ;;
             d|D)
