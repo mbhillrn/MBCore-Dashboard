@@ -311,9 +311,13 @@ def check_geo_db_integrity() -> tuple:
 
 
 def get_geo_db_stats() -> dict:
-    """Get statistics about the geo database"""
+    """Get statistics about the geo database with status"""
+    base = {'status': 'disabled', 'entries': 0, 'size_mb': 0, 'last_updated': None, 'oldest_updated': None, 'db_path': str(GEO_DB_FILE)}
+    if not geo_db_enabled:
+        return base
     if not GEO_DB_FILE.exists():
-        return {'entries': 0, 'size_mb': 0, 'last_updated': None, 'oldest_updated': None}
+        base['status'] = 'not_found'
+        return base
     try:
         conn = sqlite3.connect(GEO_DB_FILE)
         cursor = conn.execute('SELECT COUNT(*) FROM geo_cache')
@@ -324,9 +328,12 @@ def get_geo_db_stats() -> dict:
         oldest = cursor.fetchone()[0]
         conn.close()
         size_mb = GEO_DB_FILE.stat().st_size / (1024 * 1024)
-        return {'entries': count, 'size_mb': round(size_mb, 2), 'last_updated': last, 'oldest_updated': oldest}
-    except:
-        return {'entries': 0, 'size_mb': 0, 'last_updated': None, 'oldest_updated': None}
+        base.update({'status': 'ok', 'entries': count, 'size_mb': round(size_mb, 2), 'last_updated': last, 'oldest_updated': oldest})
+        return base
+    except Exception as e:
+        base['status'] = 'error'
+        base['error'] = str(e)
+        return base
 
 
 def get_geo_from_db(ip: str) -> Optional[dict]:
@@ -1170,19 +1177,17 @@ async def api_info(currency: str = "USD"):
     except Exception as e:
         print(f"System stats fetch error: {e}")
 
-    # 6. Geo database stats
-    if geo_db_enabled:
-        try:
-            stats = get_geo_db_stats()
-            if stats['entries'] > 0:
-                # Calculate oldest entry age in days
-                oldest_age_days = None
-                if stats.get('oldest_updated'):
-                    oldest_age_days = int((time.time() - stats['oldest_updated']) / 86400)
-                stats['oldest_age_days'] = oldest_age_days
-            result['geo_db_stats'] = stats
-        except Exception:
-            pass
+    # 6. Geo database stats (always returned so frontend can show status)
+    try:
+        stats = get_geo_db_stats()
+        if stats.get('entries', 0) > 0:
+            oldest_age_days = None
+            if stats.get('oldest_updated'):
+                oldest_age_days = int((time.time() - stats['oldest_updated']) / 86400)
+            stats['oldest_age_days'] = oldest_age_days
+        result['geo_db_stats'] = stats
+    except Exception:
+        result['geo_db_stats'] = {'status': 'error', 'error': 'Failed to query database'}
 
     return result
 
@@ -1442,6 +1447,52 @@ async def api_peer_connect(request: Request):
             return {'success': False, 'error': r.stderr.strip() or 'Failed to connect to peer'}
     except Exception as e:
         return {'success': False, 'error': str(e)}
+
+
+@app.post("/api/geodb/update")
+async def api_geodb_update():
+    """Download and merge the latest geo database from the server"""
+    if not geo_db_enabled:
+        return {'success': False, 'message': 'Geo database is disabled'}
+    try:
+        import tempfile
+        tmp_path = DATA_DIR / 'geo_download.tmp'
+        # Download remote database
+        resp = requests.get(GEO_DB_REPO_URL, timeout=60, stream=True)
+        if resp.status_code != 200:
+            return {'success': False, 'message': f'Download failed (HTTP {resp.status_code})'}
+        with open(tmp_path, 'wb') as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+        # Validate it's a real SQLite database with the expected table
+        try:
+            tmp_conn = sqlite3.connect(tmp_path)
+            remote_count = tmp_conn.execute('SELECT COUNT(*) FROM geo_cache').fetchone()[0]
+            tmp_conn.close()
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            return {'success': False, 'message': 'Downloaded file is not a valid geo database'}
+        if remote_count == 0:
+            tmp_path.unlink(missing_ok=True)
+            return {'success': False, 'message': 'Remote database is empty'}
+        if not GEO_DB_FILE.exists():
+            # No local DB — just use the downloaded one
+            tmp_path.rename(GEO_DB_FILE)
+            return {'success': True, 'message': f'Downloaded database ({remote_count} entries)'}
+        # Merge: add new entries from remote without overwriting local data
+        conn = sqlite3.connect(GEO_DB_FILE)
+        new_count = conn.execute(f"ATTACH '{tmp_path}' AS remote; INSERT OR IGNORE INTO geo_cache SELECT * FROM remote.geo_cache; SELECT changes();").fetchone()[0]
+        conn.execute("DETACH remote")
+        conn.commit()
+        total = conn.execute('SELECT COUNT(*) FROM geo_cache').fetchone()[0]
+        conn.close()
+        tmp_path.unlink(missing_ok=True)
+        if new_count > 0:
+            return {'success': True, 'message': f'+{new_count} new entries ({total} total)'}
+        else:
+            return {'success': True, 'message': f'Already up to date ({total} entries)'}
+    except Exception as e:
+        return {'success': False, 'message': str(e)}
 
 
 @app.get("/api/cli-info")

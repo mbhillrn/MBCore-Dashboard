@@ -185,7 +185,7 @@
                 </div>
 
                 <!-- System Card -->
-                <div class="status-card card-system" id="card-system">
+                <div class="status-card card-system" id="card-system" style="position:relative;">
                     <div class="card-label">System</div>
                     <div class="system-stats">
                         <div class="system-row">
@@ -198,21 +198,20 @@
                             <span class="system-value" id="info-mem">-</span>
                             <span class="system-unit">%</span>
                         </div>
-                        <div class="system-divider" id="geodb-divider" style="display:none;"></div>
-                        <div class="system-row" id="geodb-row-entries" style="display:none;">
-                            <span class="system-label">IPs</span>
-                            <span class="system-value" id="info-geodb-entries">-</span>
+                        <div class="system-divider" id="geodb-divider"></div>
+                        <div class="system-row geodb-status-row" id="geodb-status-row">
+                            <span class="system-label">DB</span>
+                            <span class="system-value geodb-status-value" id="info-geodb-status">-</span>
                         </div>
-                        <div class="system-row" id="geodb-row-size" style="display:none;">
-                            <span class="system-label">Size</span>
-                            <span class="system-value" id="info-geodb-size">-</span>
-                            <span class="system-unit">MB</span>
-                        </div>
-                        <div class="system-row" id="geodb-row-oldest" style="display:none;">
-                            <span class="system-label">Oldest</span>
-                            <span class="system-value" id="info-geodb-oldest">-</span>
-                            <span class="system-unit" id="info-geodb-oldest-unit">d</span>
-                        </div>
+                    </div>
+                    <!-- Geo DB Dropdown -->
+                    <div class="geodb-dropdown" id="geodb-dropdown">
+                        <div class="geodb-dropdown-title">Geo/IP Database</div>
+                        <div class="geodb-dropdown-rows" id="geodb-dropdown-rows"></div>
+                        <div class="geodb-dropdown-divider"></div>
+                        <div class="geodb-dropdown-note">Check server for updates. Will not remove any existing location data, only adds new entries if available.</div>
+                        <button class="geodb-update-btn" id="geodb-update-btn">Update</button>
+                        <div class="geodb-update-msg" id="geodb-update-msg"></div>
                     </div>
                 </div>
 

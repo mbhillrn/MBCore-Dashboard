@@ -517,6 +517,135 @@ body {
     margin: 2px 0;
 }
 
+/* Geo DB status styles */
+.geodb-status-value {
+    font-size: 18px;
+}
+
+.geodb-clickable {
+    color: var(--text-primary);
+}
+
+.geodb-status-dim {
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
+.geodb-status-warn {
+    color: var(--accent-yellow);
+    font-size: 13px;
+}
+
+.geodb-status-error {
+    color: var(--accent-red);
+    font-size: 13px;
+    cursor: help;
+}
+
+/* Geo DB dropdown */
+.geodb-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    z-index: 1000;
+    min-width: 220px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.geodb-dropdown.active {
+    display: block;
+}
+
+.geodb-dropdown-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.geodb-detail-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    padding: 3px 0;
+    color: var(--text-secondary);
+}
+
+.geodb-detail-row span:first-child {
+    color: var(--text-dim);
+}
+
+.geodb-path {
+    font-size: 10px;
+    word-break: break-all;
+    max-width: 160px;
+    text-align: right;
+}
+
+.geodb-error-row span:last-child {
+    color: var(--accent-red);
+}
+
+.geodb-warn-row span:last-child {
+    color: var(--accent-yellow);
+}
+
+.geodb-dropdown-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 8px 0;
+}
+
+.geodb-dropdown-note {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+
+.geodb-update-btn {
+    width: 100%;
+    padding: 6px 0;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.geodb-update-btn:hover {
+    background: var(--border-color);
+}
+
+.geodb-update-btn:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.geodb-update-msg {
+    font-size: 11px;
+    margin-top: 6px;
+    text-align: center;
+    min-height: 16px;
+}
+
+.geodb-msg-ok {
+    color: var(--accent-green);
+}
+
+.geodb-msg-err {
+    color: var(--accent-red);
+}
+
 /* BTC Card */
 .card-btc {
     min-width: 130px;
