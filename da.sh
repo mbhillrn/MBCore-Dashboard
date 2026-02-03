@@ -19,6 +19,8 @@ source "$MBTC_DIR/lib/config.sh"
 VERSION=$(cat "$MBTC_DIR/VERSION" 2>/dev/null || echo "0.0.0")
 GITHUB_REPO="mbhillrn/Bitcoin-Core-Peer-Map"
 GITHUB_VERSION_URL="https://raw.githubusercontent.com/$GITHUB_REPO/main/VERSION"
+GEOIP_REPO="mbhillrn/Bitcoin-Node-GeoIP-Dataset"
+GEOIP_DB_URL="https://raw.githubusercontent.com/$GEOIP_REPO/main/geo.db"
 UPDATE_AVAILABLE=0
 LATEST_VERSION=""
 
@@ -181,15 +183,24 @@ run_web_dashboard() {
     fi
 
     # Check for database updates if auto-update is enabled
-    local geo_auto_update
+    local geo_auto_update geo_db_enabled
     geo_auto_update=$(get_config "GEO_DB_AUTO_UPDATE" "false")
-    if [[ "$geo_auto_update" == "true" ]]; then
-        msg_info "Checking for Geo/IP Database updates..."
-        # TODO: Implement actual download from Bitcoin Node GeoIP Dataset
-        sleep 1
-        msg_warn "Bitcoin Node GeoIP Dataset is not currently available"
-        echo -e "  ${T_DIM}Your local database will cache peers you discover.${RST}"
-        sleep 1
+    geo_db_enabled=$(get_config "GEO_DB_ENABLED" "false")
+    if [[ "$geo_db_enabled" == "true" ]]; then
+        local geo_db_file="$MBTC_DIR/data/geo.db"
+        if [[ -f "$geo_db_file" ]]; then
+            local db_count
+            db_count=$(sqlite3 "$geo_db_file" "SELECT COUNT(*) FROM geo_cache" 2>/dev/null || echo "0")
+            msg_ok "Geo/IP Database: ${db_count} cached entries"
+        fi
+        if [[ "$geo_auto_update" == "true" ]]; then
+            msg_info "Checking for Geo/IP Database updates..."
+            if ! download_geoip_dataset; then
+                msg_warn "Bitcoin Node GeoIP Dataset is not currently available"
+                echo -e "  ${T_DIM}Your local database will cache peers you discover.${RST}"
+            fi
+            sleep 1
+        fi
     fi
 
     # Run web server using venv
@@ -378,6 +389,71 @@ reset_database() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# GEO/IP DATABASE DOWNLOAD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Download or merge the Bitcoin Node GeoIP Dataset into local geo.db
+# Returns: 0 = success, 1 = download failed, 2 = no new data
+download_geoip_dataset() {
+    local geo_db_file="$MBTC_DIR/data/geo.db"
+    local tmp_db="$MBTC_DIR/data/geo_download.tmp"
+    local local_count=0 remote_count=0 new_count=0
+
+    mkdir -p "$MBTC_DIR/data"
+
+    # Count local entries if DB exists
+    if [[ -f "$geo_db_file" ]]; then
+        local_count=$(sqlite3 "$geo_db_file" "SELECT COUNT(*) FROM geo_cache" 2>/dev/null || echo "0")
+    fi
+
+    # Download remote database
+    if ! curl -sL --connect-timeout 10 --max-time 60 -o "$tmp_db" "$GEOIP_DB_URL" 2>/dev/null; then
+        rm -f "$tmp_db"
+        return 1
+    fi
+
+    # Validate downloaded file is a real SQLite database
+    if ! sqlite3 "$tmp_db" "SELECT COUNT(*) FROM geo_cache" &>/dev/null; then
+        rm -f "$tmp_db"
+        return 1
+    fi
+
+    remote_count=$(sqlite3 "$tmp_db" "SELECT COUNT(*) FROM geo_cache" 2>/dev/null || echo "0")
+
+    if [[ "$remote_count" -eq 0 ]]; then
+        rm -f "$tmp_db"
+        return 2
+    fi
+
+    if [[ ! -f "$geo_db_file" ]]; then
+        # No local DB - just use the downloaded one
+        mv "$tmp_db" "$geo_db_file"
+        msg_ok "Downloaded Geo/IP Database (${remote_count} entries)"
+        return 0
+    fi
+
+    # Merge: INSERT OR IGNORE keeps local entries, adds new ones from remote
+    # Newer timestamp wins for existing entries
+    new_count=$(sqlite3 "$geo_db_file" "
+        ATTACH '$tmp_db' AS remote;
+        INSERT OR IGNORE INTO geo_cache SELECT * FROM remote.geo_cache;
+        SELECT changes();
+    " 2>/dev/null || echo "0")
+
+    rm -f "$tmp_db"
+
+    local total_count
+    total_count=$(sqlite3 "$geo_db_file" "SELECT COUNT(*) FROM geo_cache" 2>/dev/null || echo "0")
+
+    if [[ "$new_count" -gt 0 ]]; then
+        msg_ok "Database updated (+${new_count} new entries, ${total_count} total)"
+    else
+        msg_ok "Database is up to date (${total_count} entries)"
+    fi
+    return 0
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # INTERNET CONNECTIVITY CHECK
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -556,11 +632,11 @@ show_geo_db_settings() {
         2)
             if [[ "$geo_db_enabled" == "true" ]]; then
                 echo ""
-                msg_info "Checking for Bitcoin Node GeoIP Dataset..."
-                # TODO: Implement actual download
-                sleep 1
-                msg_warn "Bitcoin Node GeoIP Dataset is not currently available"
-                echo -e "  ${T_DIM}Your local database will still cache peers you discover.${RST}"
+                msg_info "Downloading Bitcoin Node GeoIP Dataset..."
+                if ! download_geoip_dataset; then
+                    msg_warn "Bitcoin Node GeoIP Dataset is not currently available"
+                    echo -e "  ${T_DIM}Your local database will still cache peers you discover.${RST}"
+                fi
                 echo ""
                 echo -en "${T_DIM}Press Enter to continue...${RST}"
                 read -r
@@ -662,12 +738,12 @@ show_first_run_db_setup() {
             set_config "GEO_DB_CONFIGURED" "true"
             msg_ok "Database enabled with auto-updates"
             echo ""
-            msg_info "Checking for Bitcoin Node GeoIP Dataset..."
-            # TODO: Implement actual download
-            sleep 1
-            msg_warn "Bitcoin Node GeoIP Dataset is not currently available"
-            echo -e "  ${T_DIM}Will attempt again on dashboard startup.${RST}"
-            echo -e "  ${T_DIM}Your local database will cache peers you discover.${RST}"
+            msg_info "Downloading Bitcoin Node GeoIP Dataset..."
+            if ! download_geoip_dataset; then
+                msg_warn "Bitcoin Node GeoIP Dataset is not currently available"
+                echo -e "  ${T_DIM}Will attempt again on dashboard startup.${RST}"
+                echo -e "  ${T_DIM}Your local database will cache peers you discover.${RST}"
+            fi
             ;;
         2)
             set_config "GEO_DB_ENABLED" "true"

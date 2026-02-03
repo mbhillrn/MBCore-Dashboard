@@ -2269,8 +2269,8 @@ function formatBlockchainInfo(data) {
         <span class="mempool-stat-value green">${b.blocks.toLocaleString()}</span>
     </div>`;
 
-    // Best Block Hash - truncated with hover for full
-    const hashShort = b.bestblockhash ? (b.bestblockhash.slice(0, 12) + '...') : 'N/A';
+    // Best Block Hash - show trailing end (leading zeros aren't useful)
+    const hashShort = b.bestblockhash ? ('...' + b.bestblockhash.slice(-12)) : 'N/A';
     html += `<div class="mempool-stat-row">
         <span class="mempool-stat-label" title="The hash of the tip of the best valid chain">Best Block Hash</span>
         <span class="mempool-stat-value" title="${b.bestblockhash}" style="cursor: help;">${hashShort}</span>
@@ -2294,9 +2294,9 @@ function formatBlockchainInfo(data) {
         </div>`;
     }
 
-    // Chain Work - truncated with hover for full
+    // Chain Work - show trailing end (leading zeros aren't useful)
     if (b.chainwork) {
-        const cwShort = b.chainwork.slice(0, 16) + '...';
+        const cwShort = '...' + b.chainwork.slice(-16);
         html += `<div class="mempool-stat-row">
             <span class="mempool-stat-label" title="Total amount of proof-of-work in active chain (hex)">Chain Work</span>
             <span class="mempool-stat-value" title="${b.chainwork}" style="cursor: help; font-size: 0.85em;">${cwShort}</span>
