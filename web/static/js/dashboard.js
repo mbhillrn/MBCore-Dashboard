@@ -2206,6 +2206,171 @@ function formatMempoolInfo(data, btcPrice) {
     return html;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// BLOCKCHAIN INFO POPUP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Format blockchain info for display
+function formatBlockchainInfo(data) {
+    const b = data;
+    let html = '<div class="mempool-stats">';
+
+    // Chain name
+    html += `<div class="mempool-stat-row">
+        <span class="mempool-stat-label" title="The blockchain network this node is connected to">Chain</span>
+        <span class="mempool-stat-value highlight">${b.chain}</span>
+    </div>`;
+
+    // Sync Progress with progress bar
+    const syncPercent = b.verificationprogress ? (b.verificationprogress * 100) : 100;
+    const syncPct = syncPercent.toFixed(2);
+    const isSynced = syncPercent >= 99.99;
+    const syncClass = isSynced ? 'green' : 'highlight';
+
+    // Calculate progress bar (20 chars total)
+    const filledChars = Math.round((syncPercent / 100) * 20);
+    const emptyChars = 20 - filledChars;
+    const progressBar = '█'.repeat(filledChars) + '░'.repeat(emptyChars);
+
+    // Headers count (estimated total blocks on network)
+    const headersCount = b.headers || b.blocks;
+
+    html += `<div class="mempool-stat-row">
+        <span class="mempool-stat-label" title="How much of the blockchain has been verified locally">Sync Progress</span>
+        <div>
+            <span class="mempool-stat-value ${syncClass}">${b.blocks.toLocaleString()} / ${headersCount.toLocaleString()}</span>
+            <div class="mempool-stat-sub" style="font-family: monospace;">[${progressBar}] ${syncPct}%</div>
+        </div>
+    </div>`;
+
+    // Block Height
+    html += `<div class="mempool-stat-row">
+        <span class="mempool-stat-label" title="The height of the most recent block in the local chain">Block Height</span>
+        <span class="mempool-stat-value">${b.blocks.toLocaleString()}</span>
+    </div>`;
+
+    // Best Block Hash
+    html += `<div class="mempool-stat-row">
+        <span class="mempool-stat-label" title="The hash of the tip of the best valid chain">Best Block Hash</span>
+        <span class="mempool-stat-value" style="font-size: 0.75em; word-break: break-all;">${b.bestblockhash}</span>
+    </div>`;
+
+    // Difficulty
+    const diffFormatted = b.difficulty ? b.difficulty.toExponential(3) : 'N/A';
+    html += `<div class="mempool-stat-row">
+        <span class="mempool-stat-label" title="Current mining difficulty target">Difficulty</span>
+        <span class="mempool-stat-value">${diffFormatted}</span>
+    </div>`;
+
+    // Median Time
+    if (b.mediantime) {
+        const medianDate = new Date(b.mediantime * 1000);
+        const medianStr = medianDate.toLocaleString();
+        html += `<div class="mempool-stat-row">
+            <span class="mempool-stat-label" title="Median time of the last 11 blocks">Median Time</span>
+            <span class="mempool-stat-value">${medianStr}</span>
+        </div>`;
+    }
+
+    // Chain Work
+    if (b.chainwork) {
+        html += `<div class="mempool-stat-row">
+            <span class="mempool-stat-label" title="Total amount of work in active chain">Chain Work</span>
+            <span class="mempool-stat-value" style="font-size: 0.75em; word-break: break-all;">${b.chainwork}</span>
+        </div>`;
+    }
+
+    // IBD Status
+    const ibdText = b.initialblockdownload ? 'Yes' : 'No';
+    const ibdClass = b.initialblockdownload ? 'highlight' : 'green';
+    html += `<div class="mempool-stat-row">
+        <span class="mempool-stat-label" title="Whether this node is still syncing the initial blockchain">Initial Block Download</span>
+        <span class="mempool-stat-value ${ibdClass}">${ibdText}</span>
+    </div>`;
+
+    // Size on Disk
+    if (b.size_on_disk) {
+        html += `<div class="mempool-stat-row">
+            <span class="mempool-stat-label" title="Estimated size of the block data on disk">Size on Disk</span>
+            <span class="mempool-stat-value">${formatBytes(b.size_on_disk)}</span>
+        </div>`;
+    }
+
+    // Pruning Status
+    const prunedText = b.pruned ? 'Yes' : 'No';
+    const prunedClass = b.pruned ? '' : 'green';
+    let prunedDisplay = prunedText;
+    if (b.pruned && b.pruneheight) {
+        prunedDisplay = `Yes (keeping blocks after ${b.pruneheight.toLocaleString()})`;
+    }
+    html += `<div class="mempool-stat-row">
+        <span class="mempool-stat-label" title="Whether old block data has been deleted to save disk space">Pruning Enabled</span>
+        <span class="mempool-stat-value ${prunedClass}">${prunedDisplay}</span>
+    </div>`;
+
+    // Prune Target (if pruned)
+    if (b.pruned && b.prune_target_size) {
+        html += `<div class="mempool-stat-row">
+            <span class="mempool-stat-label" title="Target size to reduce block storage to when pruning">Prune Target</span>
+            <span class="mempool-stat-value">~${formatBytes(b.prune_target_size)}</span>
+        </div>`;
+    }
+
+    // Automatic Pruning
+    if (b.automatic_pruning !== undefined) {
+        const autoPruneText = b.automatic_pruning ? 'Enabled' : 'Disabled';
+        html += `<div class="mempool-stat-row">
+            <span class="mempool-stat-label" title="Whether automatic pruning is enabled">Automatic Pruning</span>
+            <span class="mempool-stat-value">${autoPruneText}</span>
+        </div>`;
+    }
+
+    // Softforks section (if present)
+    if (b.softforks && Object.keys(b.softforks).length > 0) {
+        html += `<div class="mempool-stat-row" style="margin-top: 12px; border-top: 1px solid #333; padding-top: 12px;">
+            <span class="mempool-stat-label" style="font-weight: bold;">Softforks</span>
+            <span class="mempool-stat-value"></span>
+        </div>`;
+
+        for (const [name, info] of Object.entries(b.softforks)) {
+            const status = info.active ? 'Active' : (info.type === 'bip9' && info.bip9 ? info.bip9.status : 'Inactive');
+            const statusClass = info.active ? 'green' : '';
+            html += `<div class="mempool-stat-row">
+                <span class="mempool-stat-label" title="Fork type: ${info.type}">${name}</span>
+                <span class="mempool-stat-value ${statusClass}">${status}${info.height ? ` (block ${info.height.toLocaleString()})` : ''}</span>
+            </div>`;
+        }
+    }
+
+    html += '</div>';
+    return html;
+}
+
+// Fetch and display blockchain info
+async function fetchBlockchainInfo() {
+    const modalBody = document.getElementById('blockchain-modal-body');
+
+    modalBody.innerHTML = '<div class="mempool-loading">Loading blockchain info...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/blockchain`);
+        const data = await response.json();
+
+        if (data.error) {
+            modalBody.innerHTML = `<div class="mempool-error">Error: ${data.error}</div>`;
+            return;
+        }
+
+        if (data.blockchain) {
+            modalBody.innerHTML = formatBlockchainInfo(data.blockchain);
+        } else {
+            modalBody.innerHTML = '<div class="mempool-error">No blockchain data available</div>';
+        }
+    } catch (error) {
+        modalBody.innerHTML = `<div class="mempool-error">Error: ${error.message}</div>`;
+    }
+}
+
 // Fetch and display mempool info
 async function fetchMempoolInfo() {
     const modalBody = document.getElementById('mempool-modal-body');
@@ -2531,6 +2696,29 @@ async function connectPeer(address) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Blockchain Info Button
+    const blockchainBtn = document.getElementById('blockchain-info-btn');
+    const blockchainModal = document.getElementById('blockchain-modal');
+    const blockchainModalClose = document.getElementById('blockchain-modal-close');
+
+    if (blockchainBtn && blockchainModal) {
+        blockchainBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            blockchainModal.classList.add('active');
+            fetchBlockchainInfo();
+        });
+
+        blockchainModalClose.addEventListener('click', () => {
+            blockchainModal.classList.remove('active');
+        });
+
+        blockchainModal.addEventListener('click', (e) => {
+            if (e.target === blockchainModal) {
+                blockchainModal.classList.remove('active');
+            }
+        });
+    }
+
     // Mempool Info Button
     const mempoolBtn = document.getElementById('mempool-info-btn');
     const mempoolModal = document.getElementById('mempool-modal');

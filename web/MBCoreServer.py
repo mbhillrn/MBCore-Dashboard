@@ -1223,6 +1223,27 @@ async def api_mempool(currency: str = "USD"):
     return result
 
 
+@app.get("/api/blockchain")
+async def api_blockchain():
+    """Get blockchain info for the blockchain info overlay"""
+    result = {
+        'blockchain': None,
+        'error': None
+    }
+
+    try:
+        cmd = config.get_cli_command() + ['getblockchaininfo']
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if r.returncode == 0:
+            result['blockchain'] = json.loads(r.stdout)
+        else:
+            result['error'] = r.stderr.strip() or 'Failed to get blockchain info'
+    except Exception as e:
+        result['error'] = str(e)
+
+    return result
+
+
 @app.post("/api/peer/disconnect")
 async def api_peer_disconnect(request: Request):
     """Disconnect a peer by ID"""

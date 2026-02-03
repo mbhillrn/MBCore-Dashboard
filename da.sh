@@ -612,6 +612,75 @@ show_geo_db_settings() {
     esac
 }
 
+show_first_run_db_setup() {
+    # Check if database has already been configured
+    local geo_db_configured
+    geo_db_configured=$(get_config "GEO_DB_CONFIGURED" "false")
+
+    if [[ "$geo_db_configured" == "true" ]]; then
+        return 0
+    fi
+
+    clear
+    echo ""
+    echo -e "${T_INFO}${BOLD}═══════════════════════════════════════════════════════════════${RST}"
+    echo -e "${T_INFO}${BOLD}  Geolocation Database Setup${RST}"
+    echo -e "${T_INFO}${BOLD}═══════════════════════════════════════════════════════════════${RST}"
+    echo ""
+    echo -e "  ${T_DIM}The MBCore Geolocation Database provides instant location${RST}"
+    echo -e "  ${T_DIM}data for known Bitcoin nodes. This reduces API calls and${RST}"
+    echo -e "  ${T_DIM}greatly improves performance.${RST}"
+    echo ""
+    echo -e "  ${T_DIM}How would you like to manage the database?${RST}"
+    echo ""
+    echo -e "    ${T_INFO}1)${RST} Download and keep updated"
+    echo -e "       ${T_DIM}(Updates automatically when you start the dashboard)${RST}"
+    echo ""
+    echo -e "    ${T_INFO}2)${RST} Download once, then self-managed"
+    echo -e "       ${T_DIM}(Only adds new peers you discover yourself)${RST}"
+    echo ""
+    echo -e "    ${T_INFO}3)${RST} Don't use a database"
+    echo -e "       ${T_DIM}(Rely on API only - limited to 1 lookup per 1.5 sec)${RST}"
+    echo ""
+    read -r -p "  Enter choice [1]: " db_choice
+
+    case "$db_choice" in
+        1|"")
+            set_config "GEO_DB_ENABLED" "true"
+            set_config "GEO_DB_AUTO_UPDATE" "true"
+            set_config "GEO_DB_CONFIGURED" "true"
+            msg_ok "Database enabled with auto-updates"
+            msg_info "Attempting to download database..."
+            # TODO: Implement actual download
+            echo -e "  ${T_WARN}Note: Repository not yet created - download skipped${RST}"
+            sleep 2
+            ;;
+        2)
+            set_config "GEO_DB_ENABLED" "true"
+            set_config "GEO_DB_AUTO_UPDATE" "false"
+            set_config "GEO_DB_CONFIGURED" "true"
+            msg_ok "Database enabled (self-managed)"
+            msg_info "Attempting to download database..."
+            # TODO: Implement actual download
+            echo -e "  ${T_WARN}Note: Repository not yet created - download skipped${RST}"
+            sleep 2
+            ;;
+        3)
+            set_config "GEO_DB_ENABLED" "false"
+            set_config "GEO_DB_AUTO_UPDATE" "false"
+            set_config "GEO_DB_CONFIGURED" "true"
+            msg_info "Database disabled - using API only"
+            sleep 1
+            ;;
+    esac
+
+    echo ""
+    echo -e "  ${T_DIM}You can change this anytime in: Geolocation Database (option 5)${RST}"
+    echo ""
+    echo -en "${T_DIM}Press Enter to continue...${RST}"
+    read -r
+}
+
 show_advanced_verification() {
     clear
     echo ""
@@ -1110,6 +1179,9 @@ main() {
             sleep 1
         fi
     fi
+
+    # First-run database setup prompt (only shown once)
+    show_first_run_db_setup
 
     # Main loop
     while true; do
