@@ -53,7 +53,6 @@ SCRIPT_DIR = Path(__file__).parent
 PROJECT_DIR = SCRIPT_DIR.parent
 DATA_DIR = PROJECT_DIR / 'data'
 CONFIG_FILE = DATA_DIR / 'config.conf'
-DB_FILE = DATA_DIR / 'peers.db'  # Legacy terminal UI database (unused)
 GEO_DB_FILE = DATA_DIR / 'geo.db'  # Geolocation cache database
 STATIC_DIR = SCRIPT_DIR / 'static'
 TEMPLATES_DIR = SCRIPT_DIR / 'templates'
@@ -314,18 +313,20 @@ def check_geo_db_integrity() -> tuple:
 def get_geo_db_stats() -> dict:
     """Get statistics about the geo database"""
     if not GEO_DB_FILE.exists():
-        return {'entries': 0, 'size_mb': 0, 'last_updated': None}
+        return {'entries': 0, 'size_mb': 0, 'last_updated': None, 'oldest_updated': None}
     try:
         conn = sqlite3.connect(GEO_DB_FILE)
         cursor = conn.execute('SELECT COUNT(*) FROM geo_cache')
         count = cursor.fetchone()[0]
         cursor = conn.execute('SELECT MAX(last_updated) FROM geo_cache')
         last = cursor.fetchone()[0]
+        cursor = conn.execute('SELECT MIN(last_updated) FROM geo_cache WHERE last_updated > 0')
+        oldest = cursor.fetchone()[0]
         conn.close()
         size_mb = GEO_DB_FILE.stat().st_size / (1024 * 1024)
-        return {'entries': count, 'size_mb': round(size_mb, 2), 'last_updated': last}
+        return {'entries': count, 'size_mb': round(size_mb, 2), 'last_updated': last, 'oldest_updated': oldest}
     except:
-        return {'entries': 0, 'size_mb': 0, 'last_updated': None}
+        return {'entries': 0, 'size_mb': 0, 'last_updated': None, 'oldest_updated': None}
 
 
 def get_geo_from_db(ip: str) -> Optional[dict]:
@@ -1034,7 +1035,8 @@ async def api_info(currency: str = "USD"):
         'last_block': None,
         'blockchain': None,
         'network_scores': None,
-        'system_stats': None
+        'system_stats': None,
+        'geo_db_stats': None
     }
 
     # 1. Bitcoin price from Coinbase API
@@ -1167,6 +1169,20 @@ async def api_info(currency: str = "USD"):
         }
     except Exception as e:
         print(f"System stats fetch error: {e}")
+
+    # 6. Geo database stats
+    if geo_db_enabled:
+        try:
+            stats = get_geo_db_stats()
+            if stats['entries'] > 0:
+                # Calculate oldest entry age in days
+                oldest_age_days = None
+                if stats.get('oldest_updated'):
+                    oldest_age_days = int((time.time() - stats['oldest_updated']) / 86400)
+                stats['oldest_age_days'] = oldest_age_days
+            result['geo_db_stats'] = stats
+        except Exception:
+            pass
 
     return result
 
@@ -1623,8 +1639,6 @@ def main():
     print(f"  {C_RED}🔴 Please review it if this is your first time running MBCore or need to troubleshoot.{C_RESET}")
     print(f"{C_BLUE}{'─' * line_w}{C_RESET}")
     print(f"  Press {C_PINK}Ctrl+C{C_RESET} to stop the dashboard (press twice to force)")
-    print(f"{C_BLUE}{'─' * line_w}{C_RESET}")
-    print(f"  {C_BOLD}{C_YELLOW}Support (btc):{C_RESET} {C_GREEN}bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5{C_RESET}")
     print(f"{C_BLUE}{'═' * line_w}{C_RESET}")
     print("")
 

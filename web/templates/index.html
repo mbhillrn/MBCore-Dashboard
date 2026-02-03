@@ -15,7 +15,7 @@
             <div class="header-title">
                 <h1 class="logo-text">MBCore Dashboard <span class="version">v{{ version }}</span></h1>
                 <span class="subtitle">Peer info, map, and tools for Bitcoin Core</span>
-                <span class="credits">Created by mbhillrn | Support (btc): bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span>
+                <span class="credits">Created by <a href="https://github.com/mbhillrn" target="_blank" rel="noopener" class="credits-link">mbhillrn</a> | Support (btc): <span class="btc-copy" id="header-btc-copy" title="Click to copy">bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span></span>
             </div>
             <div class="header-info">
                 <span class="status-indicator" id="status-indicator"></span>
@@ -197,6 +197,27 @@
                             <span class="system-label">MEM</span>
                             <span class="system-value" id="info-mem">-</span>
                             <span class="system-unit">%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Geo DB Card -->
+                <div class="status-card card-geodb" id="card-geodb" style="display:none;">
+                    <div class="card-label">Geo DB</div>
+                    <div class="system-stats">
+                        <div class="system-row">
+                            <span class="system-label">IPs</span>
+                            <span class="system-value" id="info-geodb-entries">-</span>
+                        </div>
+                        <div class="system-row">
+                            <span class="system-label">Size</span>
+                            <span class="system-value" id="info-geodb-size">-</span>
+                            <span class="system-unit">MB</span>
+                        </div>
+                        <div class="system-row">
+                            <span class="system-label">Oldest</span>
+                            <span class="system-value" id="info-geodb-oldest">-</span>
+                            <span class="system-unit" id="info-geodb-oldest-unit">d</span>
                         </div>
                     </div>
                 </div>
@@ -487,7 +508,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <span>MBCore Dashboard v{{ version }} | created by mbhillrn | Support (btc): bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span>
+            <span>MBCore Dashboard v{{ version }} | created by <a href="https://github.com/mbhillrn" target="_blank" rel="noopener" class="credits-link">mbhillrn</a> | Support (btc): <span class="btc-copy" id="footer-btc-copy" title="Click to copy">bc1qy63057zemrskq0n02avq9egce4cpuuenm5ztf5</span></span>
             <span id="refresh-timer">Refreshing in 10s</span>
         </footer>
     </div>

@@ -96,6 +96,19 @@ body {
     margin-top: 4px;
 }
 
+.credits-link {
+    color: var(--text-dim);
+    text-decoration: none;
+}
+
+.credits-link:hover {
+    text-decoration: underline;
+}
+
+.btc-copy {
+    cursor: pointer;
+}
+
 .header-info {
     display: flex;
     flex-direction: column;

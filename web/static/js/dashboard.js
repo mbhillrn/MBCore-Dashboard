@@ -2074,6 +2074,29 @@ function updateInfoPanel(data) {
                 : '-';
         }
     }
+
+    // Geo DB Stats
+    const geodbCard = document.getElementById('card-geodb');
+    if (data.geo_db_stats && data.geo_db_stats.entries > 0) {
+        if (geodbCard) geodbCard.style.display = '';
+        const entriesEl = document.getElementById('info-geodb-entries');
+        const sizeEl2 = document.getElementById('info-geodb-size');
+        const oldestEl = document.getElementById('info-geodb-oldest');
+        const oldestUnitEl = document.getElementById('info-geodb-oldest-unit');
+        if (entriesEl) entriesEl.textContent = data.geo_db_stats.entries.toLocaleString();
+        if (sizeEl2) sizeEl2.textContent = data.geo_db_stats.size_mb;
+        if (oldestEl) {
+            if (data.geo_db_stats.oldest_age_days != null) {
+                oldestEl.textContent = data.geo_db_stats.oldest_age_days;
+                if (oldestUnitEl) oldestUnitEl.textContent = 'd';
+            } else {
+                oldestEl.textContent = '-';
+                if (oldestUnitEl) oldestUnitEl.textContent = '';
+            }
+        }
+    } else {
+        if (geodbCard) geodbCard.style.display = 'none';
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2888,4 +2911,20 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
+
+    // BTC address click-to-copy
+    document.querySelectorAll('.btc-copy').forEach(el => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => {
+            const addr = el.textContent;
+            navigator.clipboard.writeText(addr).then(() => {
+                el.setAttribute('title', 'Copied!');
+                setTimeout(() => {
+                    el.setAttribute('title', 'Click to copy');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        });
+    });
 });
