@@ -686,6 +686,15 @@ function getStableAntarcticaPosition(peerAddr, network, locationType) {
 }
 
 // Network colors (matching CSS)
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : { r: 255, g: 255, b: 255 };
+}
+
 const NETWORK_COLORS = {
     'ipv4':  '#d29922', // yellow
     'ipv6':  '#e69500', // orange
@@ -745,13 +754,14 @@ function updateMap() {
 
         const isNew = !prevMarkerIds.has(peer.id);
 
+        // New markers start as small green dot, shrink to final size, hold green, then fade to network color
         const marker = L.circleMarker([lat, lon], {
-            radius: isNew ? 12 : 6,
-            fillColor: isNew ? '#3fb950' : color,
+            radius: isNew ? 9 : 5,
+            fillColor: isNew ? '#56d364' : color,
             color: isNew ? '#3fb950' : '#ffffff',
-            weight: isNew ? 2 : 1,
-            opacity: 0.8,
-            fillOpacity: isNew ? 0.9 : 0.7
+            weight: isNew ? 1.5 : 1,
+            opacity: isNew ? 1 : 0.8,
+            fillOpacity: isNew ? 0.95 : 0.7
         });
 
         const networkLabel = network.toUpperCase();
@@ -770,17 +780,64 @@ function updateMap() {
         marker.addTo(map);
         markers[peer.id] = marker;
 
-        // Animate new markers: shrink from large green to normal
+        // Animate new markers: smooth shrink → smooth color fade to network color
         if (isNew) {
+            // Phase 1: Shrink from 9 to resting size over ~800ms (stepped for smooth feel)
+            const shrinkSteps = 8;
+            const startRadius = 9;
+            const endRadius = 5;
+            const shrinkDelay = 100; // 800ms total
+            for (let i = 1; i <= shrinkSteps; i++) {
+                ((step) => {
+                    setTimeout(() => {
+                        if (!markers[peer.id]) return;
+                        const t = step / shrinkSteps;
+                        const eased = 1 - Math.pow(1 - t, 2);
+                        const r = startRadius + (endRadius - startRadius) * eased;
+                        marker.setRadius(r);
+                        marker.setStyle({
+                            fillOpacity: 0.95 - (eased * 0.25),
+                            weight: 1.5 - (eased * 0.5)
+                        });
+                    }, step * shrinkDelay);
+                })(i);
+            }
+
+            // Phase 2: Smoothly interpolate color from green to network color over 2.5s
+            const fadeStart = 800; // after shrink finishes
+            const fadeDuration = 2500;
+            const fadeSteps = 25; // 25 steps over 2.5s = every 100ms
+            const fadeStepDelay = fadeDuration / fadeSteps;
+            const startColor = { r: 0x56, g: 0xd3, b: 0x64 }; // #56d364
+            const endColor = hexToRgb(color);
+
+            for (let i = 1; i <= fadeSteps; i++) {
+                ((step) => {
+                    setTimeout(() => {
+                        if (!markers[peer.id]) return;
+                        const t = step / fadeSteps;
+                        // Ease-in curve so it lingers on green then accelerates to target
+                        const eased = t * t;
+                        const r = Math.round(startColor.r + (endColor.r - startColor.r) * eased);
+                        const g = Math.round(startColor.g + (endColor.g - startColor.g) * eased);
+                        const b = Math.round(startColor.b + (endColor.b - startColor.b) * eased);
+                        const blended = `rgb(${r},${g},${b})`;
+                        marker.setStyle({ fillColor: blended });
+                    }, fadeStart + step * fadeStepDelay);
+                })(i);
+            }
+
+            // Final settle: ensure exact network color and resting style
             setTimeout(() => {
-                marker.setRadius(6);
+                if (!markers[peer.id]) return;
                 marker.setStyle({
                     fillColor: color,
                     color: '#ffffff',
                     weight: 1,
-                    fillOpacity: 0.7
+                    fillOpacity: 0.7,
+                    opacity: 0.8
                 });
-            }, 1000);
+            }, fadeStart + fadeDuration + 50);
         }
     });
 }
@@ -1370,7 +1427,7 @@ function updateProtocolStatus(enabled) {
     }
 }
 
-// Update map status indicator (orange=updating, green=updated, red=error)
+// Update map status indicator: green=all good, yellow=locating peers, red=error
 function updateMapStatus(pending) {
     const dot = document.getElementById('map-status-dot');
     const text = document.getElementById('map-status-text');
@@ -1380,17 +1437,17 @@ function updateMapStatus(pending) {
     dot.classList.remove('status-ok', 'status-pending', 'status-error');
 
     if (pending < 0) {
-        // Error
+        // Error state
         dot.classList.add('status-error');
-        text.textContent = 'Error';
+        text.textContent = 'Update Error';
     } else if (pending > 0) {
-        // Still loading
+        // Peers still being geolocated
         dot.classList.add('status-pending');
-        text.textContent = `Updating... (${pending})`;
+        text.textContent = `Locating ${pending} peer${pending > 1 ? 's' : ''}...`;
     } else {
-        // All done
+        // Everything loaded and good
         dot.classList.add('status-ok');
-        text.textContent = 'Updated!';
+        text.textContent = 'Map Loaded!';
     }
 }
 
@@ -1888,7 +1945,7 @@ function setupAntarcticaToggle() {
 function updateCountdownDisplay() {
     // Update footer timer
     refreshTimerEl.textContent = `Refreshing in ${countdown}s`;
-    // Update stats bar countdown
+    // Update map panel countdown
     const statCountdown = document.getElementById('stat-countdown');
     if (statCountdown) {
         statCountdown.textContent = `${countdown}s`;
@@ -3230,7 +3287,7 @@ function pulseOnChange(elementId, newValue, mode) {
     if (numNew === prev) return;
 
     const up = numNew > prev;
-    const allClasses = ['pulse-up', 'pulse-down', 'pulse-up-long', 'pulse-down-long', 'pulse-white', 'price-up', 'price-down'];
+    const allClasses = ['pulse-up', 'pulse-down', 'pulse-up-long', 'pulse-down-long', 'pulse-white', 'price-up', 'price-down', 'price-pulse-up', 'price-pulse-down'];
     allClasses.forEach(c => el.classList.remove(c));
     void el.offsetWidth;
 
@@ -3241,12 +3298,12 @@ function pulseOnChange(elementId, newValue, mode) {
         el.classList.add(up ? 'pulse-up-long' : 'pulse-down-long');
         setTimeout(() => el.classList.remove('pulse-up-long', 'pulse-down-long'), 5000);
     } else if (mode === 'persistent') {
-        // Pulse first, then stay colored
-        el.classList.add(up ? 'pulse-up' : 'pulse-down');
+        // Smooth pulse from lighter shade into resting color, then stay colored
+        el.classList.add(up ? 'price-pulse-up' : 'price-pulse-down');
         setTimeout(() => {
-            el.classList.remove('pulse-up', 'pulse-down');
+            el.classList.remove('price-pulse-up', 'price-pulse-down');
             el.classList.add(up ? 'price-up' : 'price-down');
-        }, 1500);
+        }, 2000);
     } else {
         el.classList.add(up ? 'pulse-up' : 'pulse-down');
         setTimeout(() => el.classList.remove('pulse-up', 'pulse-down'), 1500);
