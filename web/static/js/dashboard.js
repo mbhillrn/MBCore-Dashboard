@@ -98,9 +98,25 @@ const connectionStatus = document.getElementById('connection-status');
 const refreshTimerEl = document.getElementById('refresh-timer');
 const changesTbody = document.getElementById('changes-tbody');
 
+// Track if initial map fit has been done
+let hasInitialMapFit = false;
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    loadColumnPreferences();  // Load saved order/visibility first
+    // Always start with default columns (no persistence)
+    visibleColumns = [...defaultVisibleColumns];
+    columnOrder = [...defaultVisibleColumns];
+    try {
+        localStorage.removeItem('mbcore_visible_columns');
+        localStorage.removeItem('mbcore_column_order');
+        localStorage.removeItem('mbcore_column_widths');
+    } catch (e) {}
+    columnWidths = {};
+    hasSavedColumnWidths = false;
+    autoSizedColumns = false;
+    // Apply defaults immediately to hide non-default columns in the HTML
+    applyColumnVisibility();
+    reorderTableColumns();
     setupRefreshRateControl(); // Load refresh rate preference early
     setupChangesWindowControl(); // Load changes window preference
     setupAntarcticaToggle(); // Setup Antarctica show/hide toggle
@@ -117,8 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
     setupRestoreDefaults();
     setupPanelResize();
     setupPeerRowClick();
+    setupPeerRowLimit();
     initMap();
     setupMapRegionSelector();
+    setupMapDisplayMode();
+    setupMapFitAllButton();
     setupCurrencyDropdown();
     setupToggleChangesPanel();
     setupRestoreAllDefaults();
@@ -682,40 +701,164 @@ function setupPanelResize() {
     });
 }
 
-// Initialize Leaflet map
-function initMap() {
-    // Bounds to prevent panning too far outside world
+// Peer row limit (how many visible before scroll)
+let peerRowLimit = 15;
+const PEER_ROW_HEIGHT = 27; // approximate px per row
+
+function setupPeerRowLimit() {
+    const select = document.getElementById('peer-row-limit');
+    if (!select) return;
+
+    select.addEventListener('change', () => {
+        peerRowLimit = parseInt(select.value, 10) || 15;
+        applyPeerRowLimit();
+    });
+
+    // Apply on init
+    applyPeerRowLimit();
+}
+
+function applyPeerRowLimit() {
+    const container = document.querySelector('.table-container');
+    if (container) {
+        // header row (~30px) + data rows
+        container.style.maxHeight = (30 + peerRowLimit * PEER_ROW_HEIGHT) + 'px';
+    }
+}
+
+// Current map display mode: 'normal', 'stretched', 'wrap-points', 'wrap-only'
+let mapDisplayMode = 'normal';
+
+// Initialize Leaflet map (or re-create for mode change)
+function initMap(mode) {
+    mode = mode || mapDisplayMode;
+    mapDisplayMode = mode;
+
+    // Destroy existing map if present
+    const mapEl = document.getElementById('map');
+    if (map) {
+        map.remove();
+        map = null;
+    }
+
+    // Clear markers reference (they were on the old map)
+    Object.keys(markers).forEach(k => delete markers[k]);
+
+    const isWrap = (mode === 'wrap-points' || mode === 'wrap-only');
+
     const worldBounds = L.latLngBounds(
-        L.latLng(-85, -180),  // Southwest corner
-        L.latLng(85, 180)     // Northeast corner
+        L.latLng(-85, -180),
+        L.latLng(85, 180)
     );
 
-    map = L.map('map', {
+    const mapOpts = {
         center: [20, 0],
-        zoom: 2,                   // Zoomed to show whole world without repeat
+        zoom: 2,
         minZoom: 2,
         maxZoom: 18,
-        worldCopyJump: false,      // Finite world: no wrapping
-        maxBounds: worldBounds,    // Confined box: restrict panning
-        maxBoundsViscosity: 0.9    // How "sticky" the bounds are (0-1)
-    });
+        worldCopyJump: isWrap
+    };
+
+    // Only constrain bounds for non-wrapping modes
+    if (!isWrap) {
+        mapOpts.maxBounds = worldBounds;
+        mapOpts.maxBoundsViscosity = 1.0;
+    }
+
+    map = L.map('map', mapOpts);
 
     // Dark tile layer (CartoDB Dark Matter)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
         subdomains: 'abcd',
         maxZoom: 19,
-        noWrap: true  // Finite world: no tile repetition
+        noWrap: !isWrap
     }).addTo(map);
 
-    // Fix map size when container resizes
-    const mapContainer = document.getElementById('map-panel');
+    // Apply stretched class for vertical stretch effect
+    const mapContainer = document.getElementById('map');
     if (mapContainer) {
-        const resizeObserver = new ResizeObserver(() => {
-            map.invalidateSize();
-        });
-        resizeObserver.observe(mapContainer);
+        if (mode === 'stretched') {
+            mapContainer.classList.add('map-stretched');
+        } else {
+            mapContainer.classList.remove('map-stretched');
+        }
     }
+
+    // Initial view
+    map.fitBounds([[-65, -180], [75, 180]], { padding: [5, 20] });
+
+    // Fix map size when container resizes
+    const mapPanelEl = document.getElementById('map-panel');
+    if (mapPanelEl) {
+        const resizeObserver = new ResizeObserver(() => {
+            if (map) map.invalidateSize();
+        });
+        resizeObserver.observe(mapPanelEl);
+    }
+
+    // Re-add all current peer markers
+    if (currentPeers.length > 0) {
+        updateMap();
+    }
+}
+
+// Setup map display mode selector
+function setupMapDisplayMode() {
+    const select = document.getElementById('map-display-mode');
+    if (!select) return;
+
+    select.addEventListener('change', () => {
+        const mode = select.value;
+        initMap(mode);
+        // Fit all nodes after map mode change
+        setTimeout(() => zoomToAllNodes(), 500);
+    });
+}
+
+// Zoom map to fit all current peer markers
+function zoomToAllNodes() {
+    if (!map) return;
+
+    // Collect all marker positions (excluding ghost markers)
+    const bounds = [];
+    Object.keys(markers).forEach(key => {
+        if (key.endsWith('_ghosts')) return; // Skip ghost markers
+        const marker = markers[key];
+        if (marker && marker.getLatLng) {
+            bounds.push(marker.getLatLng());
+        }
+    });
+
+    if (bounds.length === 0) {
+        // No markers, show world view
+        map.fitBounds([[-65, -180], [75, 180]], { padding: [20, 20] });
+        return;
+    }
+
+    if (bounds.length === 1) {
+        // Single marker, center on it with reasonable zoom
+        map.setView(bounds[0], 6);
+        return;
+    }
+
+    // Fit to all markers with asymmetric padding (more top, less bottom for Mercator)
+    const latLngBounds = L.latLngBounds(bounds);
+    map.fitBounds(latLngBounds, {
+        paddingTopLeft: [30, 50],     // [x, y] - more padding at top
+        paddingBottomRight: [30, 15], // [x, y] - less padding at bottom (Antarctica)
+        maxZoom: 10
+    });
+}
+
+// Setup "Fit All" button
+function setupMapFitAllButton() {
+    const btn = document.getElementById('map-fit-all-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', () => {
+        zoomToAllNodes();
+    });
 }
 
 // Map region presets
@@ -744,19 +887,15 @@ function setupMapRegionSelector() {
     });
 }
 
-// Antarctica research station coordinates (all on land, near coast)
-// These are real research stations - Peninsula excluded (too close to S. America)
+// Antarctica research station coordinates (northern coastline only)
+// Private networks are scattered along the coast, not deep south
 const ANTARCTICA_STATIONS = [
-    // Ross Sea region (Pacific side)
-    { lat: -77.8460, lon: 166.6670 },  // McMurdo Station
-    { lat: -77.8480, lon: 166.7600 },  // Scott Base
-    { lat: -77.8000, lon: 166.6000 },  // Hut Point Peninsula
     // East Antarctica coastal (Indian Ocean side)
     { lat: -67.6020, lon: 62.8730 },   // Mawson Station
     { lat: -68.5760, lon: 77.9670 },   // Davis Station
     { lat: -66.2810, lon: 110.5280 },  // Casey Station
     { lat: -66.6630, lon: 140.0010 },  // Dumont d'Urville Station
-    // Additional coastal stations (Atlantic side, excluding peninsula)
+    // Atlantic side coastal stations
     { lat: -69.0050, lon: 39.5800 },   // Syowa Station
     { lat: -70.6670, lon: 11.6330 },   // Novolazarevskaya
     { lat: -70.7500, lon: -8.2500 },   // Neumayer Station
@@ -819,11 +958,11 @@ function hexToRgb(hex) {
 }
 
 const NETWORK_COLORS = {
-    'ipv4':  '#d29922', // yellow
-    'ipv6':  '#e69500', // orange
-    'onion': '#c74e4e', // mild red
+    'ipv4':  '#e3b341', // yellow
+    'ipv6':  '#f07178', // red (swapped with onion)
+    'onion': '#4a9eff', // blue (swapped with ipv6)
     'i2p':   '#6830e6', // deep purple
-    'cjdns': '#d296c7', // light pink
+    'cjdns': '#d2a8ff', // light pink
     'unavailable': '#6e7681' // gray
 };
 
@@ -840,7 +979,6 @@ function updateMap() {
             if (el) {
                 el.style.transition = 'opacity 2s ease';
                 el.style.opacity = '0';
-                // Flash red before fading
                 m.setStyle({ fillColor: '#f85149', color: '#f85149', fillOpacity: 1 });
                 setTimeout(() => {
                     map.removeLayer(m);
@@ -850,6 +988,12 @@ function updateMap() {
                 map.removeLayer(m);
                 delete markers[id];
             }
+            // Remove ghost markers if any
+            const ghostKey = id + '_ghosts';
+            if (markers[ghostKey]) {
+                markers[ghostKey].forEach(g => map.removeLayer(g));
+                delete markers[ghostKey];
+            }
         }
     });
 
@@ -857,9 +1001,17 @@ function updateMap() {
         let lat, lon;
         const network = peer.network || 'ipv4';
         const color = NETWORK_COLORS[network] || NETWORK_COLORS['ipv4'];
+        const isPrivateNetwork = peer.location_status === 'private' || peer.location_status === 'unavailable';
 
-        if (peer.location_status === 'private' || peer.location_status === 'unavailable') {
-            if (!showAntarcticaDots) return;
+        if (isPrivateNetwork) {
+            // If hiding Antarctica dots, remove existing marker and skip
+            if (!showAntarcticaDots) {
+                if (markers[peer.id]) {
+                    map.removeLayer(markers[peer.id]);
+                    delete markers[peer.id];
+                }
+                return;
+            }
             const pos = getStableAntarcticaPosition(peer.addr, network, peer.location_status);
             lat = pos.lat;
             lon = pos.lon;
@@ -888,20 +1040,58 @@ function updateMap() {
         });
 
         const networkLabel = network.toUpperCase();
-        const statusLabel = peer.location_status === 'private' ? ' (Private)' :
-                           peer.location_status === 'unavailable' ? ' (Unavailable)' : '';
+        const isPrivate = peer.location_status === 'private' || peer.location_status === 'unavailable';
 
-        marker.bindPopup(`
-            <strong>${peer.ip}</strong><br>
-            <span style="color: ${color}">${networkLabel}</span>${statusLabel}<br>
-            ${peer.location_status === 'ok' ? `${peer.city}, ${peer.countryCode}` : peer.location}<br>
-            ${peer.isp || '-'}<br>
-            <span style="color: ${peer.direction === 'IN' ? '#3fb950' : '#58a6ff'}">${peer.direction}</span>
-            | ${peer.subver}
-        `);
+        let popupHtml;
+        if (isPrivate) {
+            popupHtml = `
+                <strong>ID ${peer.id}</strong> — <span style="font-family:var(--font-data)">${peer.ip}:${peer.port || '-'}</span><br>
+                <span style="color: ${color}; font-weight:600">${networkLabel}</span><br>
+                <span style="color: var(--text-dim); font-style:italic">(Location Private)</span><br>
+                <span style="font-size:10px; color: var(--text-dim)">Shown in Antarctica for display only.<br>Toggle in map legend above.</span><br>
+                <span style="color: ${peer.direction === 'IN' ? '#3fb950' : '#58a6ff'}">${peer.connection_type_abbrev || peer.direction}</span>
+                | ${peer.conntime_fmt || '-'}
+            `;
+        } else {
+            const locParts = [];
+            if (peer.city) locParts.push(peer.city);
+            if (peer.regionName || peer.region) locParts.push(peer.regionName || peer.region);
+            if (peer.country) locParts.push(peer.country);
+            if (peer.continent) locParts.push(peer.continent);
+            const locStr = locParts.length > 0 ? locParts.join(', ') : (peer.location || '-');
+
+            popupHtml = `
+                <strong>ID ${peer.id}</strong> — <span style="font-family:var(--font-data)">${peer.ip}:${peer.port || '-'}</span><br>
+                <span style="color: ${color}; font-weight:600">${networkLabel}</span><br>
+                ${locStr}<br>
+                ${peer.isp || '-'}<br>
+                <span style="color: ${peer.direction === 'IN' ? '#3fb950' : '#58a6ff'}">${peer.connection_type_abbrev || peer.direction}</span>
+                | ${peer.conntime_fmt || '-'}
+            `;
+        }
+
+        marker.bindPopup(popupHtml);
 
         marker.addTo(map);
         markers[peer.id] = marker;
+
+        // Wrap + Points mode: add ghost markers at lon±360 so dots show on wrapped copies
+        if (mapDisplayMode === 'wrap-points') {
+            const ghostOpts = {
+                radius: 5, fillColor: color, color: '#ffffff',
+                weight: 1, opacity: 0.6, fillOpacity: 0.5
+            };
+            const ghost1 = L.circleMarker([lat, lon - 360], ghostOpts);
+            const ghost2 = L.circleMarker([lat, lon + 360], ghostOpts);
+            ghost1.bindPopup(popupHtml);
+            ghost2.bindPopup(popupHtml);
+            ghost1.addTo(map);
+            ghost2.addTo(map);
+            // Store ghost markers for cleanup
+            if (!markers[peer.id + '_ghosts']) {
+                markers[peer.id + '_ghosts'] = [ghost1, ghost2];
+            }
+        }
 
         // Animate new markers: smooth shrink → smooth color fade to network color
         if (isNew) {
@@ -1029,9 +1219,21 @@ function setupColumnConfig() {
                     if (!visibleColumns.includes(col)) {
                         visibleColumns.push(col);
                     }
-                    // Also add to columnOrder if not present (for newly enabled columns)
                     if (!columnOrder.includes(col)) {
                         columnOrder.push(col);
+                    }
+                    // Ensure <th> exists for this column (dynamic geo columns may not be in HTML)
+                    const existingTh = document.querySelector(`#peer-table th[data-col="${col}"]`);
+                    if (!existingTh) {
+                        const thead = document.querySelector('#peer-table thead tr');
+                        if (thead) {
+                            const th = document.createElement('th');
+                            th.dataset.sort = col;
+                            th.dataset.col = col;
+                            th.title = columnLabels[col] || col;
+                            th.textContent = columnLabels[col] || col;
+                            thead.appendChild(th);
+                        }
                     }
                 } else {
                     visibleColumns = visibleColumns.filter(c => c !== col);
@@ -1343,6 +1545,12 @@ async function fetchPeers() {
         renderPeers();
         updateMap();
 
+        // On first load, zoom to fit all nodes after 1 second
+        if (!hasInitialMapFit && currentPeers.length > 0) {
+            hasInitialMapFit = true;
+            setTimeout(() => zoomToAllNodes(), 1000);
+        }
+
         // Update status
         statusIndicator.classList.add('connected');
         statusIndicator.classList.remove('error');
@@ -1495,10 +1703,13 @@ async function fetchStats() {
                     else if (cpuVal >= 75) cpuEl.classList.add('threshold-warn');
                     else pulseOnChange('info-cpu', cpuVal, 'white');
                 }
-                // CPU breakdown tooltip
-                if (cpuLabel && stats.system_stats.cpu_breakdown) {
+                // CPU breakdown tooltip on label AND value
+                if (stats.system_stats.cpu_breakdown) {
                     const bd = stats.system_stats.cpu_breakdown;
-                    cpuLabel.title = `CPU Breakdown:\nUser: ${bd.user}%\nSystem: ${bd.system}%\nIO Wait: ${bd.iowait}%\nSteal: ${bd.steal}%\nIdle: ${bd.idle}%`;
+                    const cpuTip = `CPU Breakdown:\nUser: ${bd.user}%\nSystem: ${bd.system}%\nIO Wait: ${bd.iowait}%\nSteal: ${bd.steal}%\nIdle: ${bd.idle}%`;
+                    if (cpuLabel) cpuLabel.title = cpuTip;
+                    const cpuValueEl = document.getElementById('sidebar-cpu-value');
+                    if (cpuValueEl) cpuValueEl.title = cpuTip;
                 }
             }
             if (memEl) {
@@ -1510,11 +1721,14 @@ async function fetchStats() {
                     else if (memVal >= 80) memEl.classList.add('threshold-warn');
                     else pulseOnChange('info-mem', memVal, 'white');
                 }
-                // RAM MB tooltip
-                if (memLabel && stats.system_stats.mem_used_mb != null && stats.system_stats.mem_total_mb != null) {
+                // RAM MB tooltip on label AND value
+                if (stats.system_stats.mem_used_mb != null && stats.system_stats.mem_total_mb != null) {
                     const used = stats.system_stats.mem_used_mb;
                     const total = stats.system_stats.mem_total_mb;
-                    memLabel.title = `RAM Usage: ${used.toLocaleString()} MB / ${total.toLocaleString()} MB`;
+                    const memTip = `RAM Usage: ${used.toLocaleString()} MB / ${total.toLocaleString()} MB`;
+                    if (memLabel) memLabel.title = memTip;
+                    const memValueEl = document.getElementById('sidebar-mem-value');
+                    if (memValueEl) memValueEl.title = memTip;
                 }
             }
         }
@@ -1618,15 +1832,41 @@ function renderChanges(changes) {
         if (filteredChanges.length === 0) {
             sidebarList.innerHTML = '<div class="sidebar-updates-empty">No recent changes</div>';
         } else {
-            // Show last 4 changes in sidebar
-            const sidebarItems = filteredChanges.slice(0, 4).map(change => {
+            // Show changes in sidebar (scrollable)
+            const sidebarItems = filteredChanges.map(change => {
                 const prefix = change.type === 'connected' ? '+' : '-';
-                const cls = change.type === 'connected' ? 'update-connected' : 'update-disconnected';
+                const cls = change.type === 'connected' ? 'update-connected update-clickable' : 'update-disconnected';
                 const ip = change.peer.ip || '-';
                 const net = change.peer.network ? ` (${change.peer.network})` : '';
-                return `<div class="sidebar-update-item ${cls}" title="${change.type}: ${ip}${net}">${prefix} ${ip}${net}</div>`;
+                const clickAttr = change.type === 'connected' ? ` data-ip="${ip}"` : '';
+                const titleExtra = change.type === 'connected' ? ' (click to find on map)' : '';
+                return `<div class="sidebar-update-item ${cls}" title="${change.type}: ${ip}${net}${titleExtra}"${clickAttr}>${prefix} ${ip}${net}</div>`;
             }).join('');
             sidebarList.innerHTML = sidebarItems;
+
+            // Add click handlers for connected entries to fly to map
+            sidebarList.querySelectorAll('.update-clickable').forEach(item => {
+                item.addEventListener('click', () => {
+                    const ip = item.dataset.ip;
+                    if (!ip || !map) return;
+                    // Find the peer with this IP and fly to it on the map
+                    const peer = currentPeers.find(p => p.ip === ip);
+                    if (peer && peer.lat && peer.lon) {
+                        map.flyTo([peer.lat, peer.lon], 6, { duration: 1.0 });
+                        const marker = markers[peer.id];
+                        if (marker) marker.openPopup();
+                    } else {
+                        // Location not yet resolved - show brief tooltip
+                        const origText = item.textContent;
+                        item.textContent = origText + ' (still locating...)';
+                        item.style.color = 'var(--yellow)';
+                        setTimeout(() => {
+                            item.textContent = origText;
+                            item.style.color = '';
+                        }, 2000);
+                    }
+                });
+            });
         }
     }
 
@@ -1713,7 +1953,7 @@ function renderPeers() {
                 <td colspan="23">${msg}</td>
             </tr>
         `;
-        peerCount.textContent = networkFilter === 'all' ? '0 peers' : `0/${currentPeers.length} peers`;
+        if (peerCount) peerCount.textContent = networkFilter === 'all' ? '0 peers' : `0/${currentPeers.length} peers`;
         return;
     }
 
@@ -1826,20 +2066,26 @@ function renderPeers() {
         // Network text color class for ALL columns except direction and in_addrman
         const netTextClass = `network-${peer.network}`;
 
-        // Connection type badge and tooltip
+        // Connection type badge and tooltip with inbound/outbound highlighting
         const connTypeAbbrev = (peer.connection_type_abbrev || '-').toUpperCase();
-        const connTypeBadgeClass = connTypeAbbrev.toLowerCase();
         const connTypeDescriptions = {
-            'INB': 'Inbound: They connected to us (full relay)',
-            'OFR': 'Outbound Full Relay: We connected to them (transactions + blocks)',
-            'BLO': 'Block Relay Only: We connected, blocks only (no transactions)',
-            'MAN': 'Manual: Added via addnode command',
-            'FET': 'Address Fetch: Temporary connection to get addresses',
-            'FEL': 'Feeler: Temporary connection to test reachability'
+            'INB': 'Inbound: Peer initiated the connection to you',
+            'OFR': 'Outbound Full Relay: Normal outbound peer (transactions + blocks)',
+            'BLO': 'Block Relay Only: Outbound peer used for blocks only (no tx or addr relay)',
+            'MAN': 'Manual: You explicitly connected via addnode RPC or config',
+            'FET': 'Address Fetch: Short-lived outbound connection to solicit addresses',
+            'FEL': 'Feeler: Short-lived outbound connection to test reachability'
         };
+        // INB = inbound (green bg), all others = outbound (blue bg)
+        const isInboundType = connTypeAbbrev === 'INB';
+        const connTypeBgClass = isInboundType ? 'conn-type-inbound' : 'conn-type-outbound';
+        // BLO gets yellow text, FET/FEL get lighter blue text, others get normal
+        let connTypeTextClass = '';
+        if (connTypeAbbrev === 'BLO') connTypeTextClass = 'conn-type-text-yellow';
+        else if (connTypeAbbrev === 'FET' || connTypeAbbrev === 'FEL') connTypeTextClass = 'conn-type-text-lightblue';
         const connTypeTooltip = connTypeDescriptions[connTypeAbbrev] || `Connection Type: ${peer.connection_type || '-'}`;
         const connTypeBadge = connTypeAbbrev !== '-'
-            ? `<span class="conn-type-badge ${connTypeBadgeClass}">${connTypeAbbrev}</span>`
+            ? `<span class="conn-type-badge ${connTypeBgClass} ${connTypeTextClass}">${connTypeAbbrev}</span>`
             : '-';
 
         // Cell definitions for dynamic column ordering
@@ -1859,8 +2105,8 @@ function renderPeers() {
             'countryCode': { class: `${geoClass} ${netTextClass}`, title: `Country Code: ${geoDisplay.countryCode}`, content: geoDisplay.countryCode },
             'continent': { class: `${geoClass} ${netTextClass}`, title: `Continent: ${geoDisplay.continent}`, content: geoDisplay.continent },
             'continentCode': { class: `${geoClass} ${netTextClass}`, title: `Continent Code: ${geoDisplay.continentCode}`, content: geoDisplay.continentCode },
-            'bytessent': { class: netTextClass, title: `Bytes Sent: ${peer.bytessent_fmt}`, content: peer.bytessent_fmt },
-            'bytesrecv': { class: netTextClass, title: `Bytes Received: ${peer.bytesrecv_fmt}`, content: peer.bytesrecv_fmt },
+            'bytessent': { class: 'bytes-sent', title: `Bytes Sent: ${peer.bytessent_fmt}`, content: peer.bytessent_fmt },
+            'bytesrecv': { class: 'bytes-recv', title: `Bytes Received: ${peer.bytesrecv_fmt}`, content: peer.bytesrecv_fmt },
             'ping_ms': { class: netTextClass, title: `Ping: ${peer.ping_ms != null ? peer.ping_ms + 'ms' : '-'}`, content: peer.ping_ms != null ? peer.ping_ms + 'ms' : '-' },
             'conntime': { class: netTextClass, title: `Connected: ${peer.conntime_fmt}`, content: peer.conntime_fmt },
             'connection_type': { class: '', title: connTypeTooltip, content: connTypeBadge },
@@ -1899,12 +2145,7 @@ function renderPeers() {
         fitColumnsToWindow();
         autoSizedColumns = true;
     }
-    // Show count with filter info
-    if (networkFilter === 'all') {
-        peerCount.textContent = `${filteredPeers.length} peers`;
-    } else {
-        peerCount.textContent = `${filteredPeers.length}/${currentPeers.length} peers`;
-    }
+    // Show count with filter info (removed - peer count element no longer exists)
 }
 
 // Truncate string
@@ -2373,9 +2614,10 @@ function updateInfoPanel(data) {
     if (data.subversion) {
         if (sidebarSubver) {
             sidebarSubver.textContent = data.subversion;
+            sidebarSubver.title = data.subversion;
         }
         if (sidebarNodeHeader) {
-            sidebarNodeHeader.title = `Node: ${data.subversion}`;
+            sidebarNodeHeader.title = data.subversion;
         }
     }
 
@@ -2387,7 +2629,7 @@ function updateInfoPanel(data) {
 
     if (data.blockchain) {
         if (sizeEl) {
-            sizeEl.textContent = `${data.blockchain.size_gb} GB`;
+            sizeEl.textContent = `${data.blockchain.size_gb}GB`;
         }
         if (typeEl) {
             typeEl.textContent = data.blockchain.pruned ? 'Pruned' : 'Full Node';
@@ -2495,8 +2737,8 @@ function updateInfoPanel(data) {
             const lookupOn = g.auto_lookup ? 'On' : 'Off';
             const updateOn = g.auto_update ? 'On' : 'Off';
             const dimClass = 'geodb-setting-off';
-            html += `<div class="geodb-detail-row"><span>Auto-lookup</span><span class="${g.auto_lookup ? '' : dimClass}">${lookupOn}</span></div>`;
-            html += `<div class="geodb-detail-row"><span>Auto-update</span><span class="${g.auto_update ? '' : dimClass}">${updateOn}</span></div>`;
+            html += `<div class="geodb-detail-row"><span>Auto-lookup</span><span style="color: ${g.auto_lookup ? 'var(--green)' : 'var(--text-dim)'}">${lookupOn}</span></div>`;
+            html += `<div class="geodb-detail-row"><span>Auto-update</span><span style="color: ${g.auto_update ? 'var(--green)' : 'var(--text-dim)'}">${updateOn}</span></div>`;
             geodbDropdownRows.innerHTML = html;
         }
     }
@@ -3140,6 +3382,32 @@ async function connectPeer(address) {
     }
 }
 
+// Fallback clipboard copy for non-HTTPS (HTTP) contexts
+function fallbackCopyText(text, el, originalTitle) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    try {
+        document.execCommand('copy');
+        if (el) {
+            el.setAttribute('title', 'Copied!');
+            el.style.color = 'var(--green)';
+            setTimeout(() => {
+                el.setAttribute('title', originalTitle || 'Click to copy');
+                el.style.color = '';
+            }, 2000);
+        }
+    } catch (err) {
+        console.error('Fallback copy failed:', err);
+    }
+    document.body.removeChild(textarea);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // INITIALIZE NEW FEATURES
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3315,19 +3583,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // BTC address click-to-copy
+    // BTC address click-to-copy (with fallback for non-HTTPS contexts)
     document.querySelectorAll('.btc-copy').forEach(el => {
         el.style.cursor = 'pointer';
         el.addEventListener('click', () => {
-            const addr = el.textContent;
-            navigator.clipboard.writeText(addr).then(() => {
-                el.setAttribute('title', 'Copied!');
-                setTimeout(() => {
-                    el.setAttribute('title', 'Click to copy');
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy:', err);
-            });
+            const addr = el.textContent.trim();
+            const originalTitle = el.getAttribute('title');
+            // Try modern clipboard API first, then fallback
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(addr).then(() => {
+                    el.setAttribute('title', 'Copied!');
+                    el.style.color = 'var(--green)';
+                    setTimeout(() => {
+                        el.setAttribute('title', originalTitle);
+                        el.style.color = '';
+                    }, 2000);
+                }).catch(() => {
+                    // Fallback for non-secure contexts
+                    fallbackCopyText(addr, el, originalTitle);
+                });
+            } else {
+                fallbackCopyText(addr, el, originalTitle);
+            }
         });
     });
 
@@ -3354,13 +3631,16 @@ document.addEventListener('DOMContentLoaded', function() {
         geodbUpdateBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
             geodbUpdateBtn.disabled = true;
-            geodbUpdateBtn.textContent = 'Updating...';
-            if (geodbUpdateMsg) geodbUpdateMsg.textContent = '';
+            geodbUpdateBtn.textContent = 'Working...';
+            if (geodbUpdateMsg) {
+                geodbUpdateMsg.textContent = 'Working...';
+                geodbUpdateMsg.className = 'geodb-update-msg';
+            }
             try {
                 const resp = await fetch(`${API_BASE}/api/geodb/update`, { method: 'POST' });
                 const data = await resp.json();
                 if (geodbUpdateMsg) {
-                    geodbUpdateMsg.textContent = data.message || (data.success ? 'Done' : 'Failed');
+                    geodbUpdateMsg.textContent = data.message || (data.success ? 'Done!' : 'Failed');
                     geodbUpdateMsg.className = 'geodb-update-msg ' + (data.success ? 'geodb-msg-ok' : 'geodb-msg-err');
                 }
                 // Refresh info panel to pick up new stats
