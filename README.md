@@ -6,10 +6,11 @@ A lightweight real-time monitoring dashboard for Bitcoin Core nodes that visuali
 
 - Interactive world map of YOUR node's actual connected peers
 - Zero config - just point at bitcoind
-- All 5 protocols (IPv4, IPv6, Tor, I2P, CJDNS) with color-coded network indicators
+- Dashboard supports all 5 protocols (IPv4, IPv6, Tor, I2P, CJDNS) with color-coded network indicators
+- Geolocation supported on public internet protocols (Ipv4, Ipv6)
 - Connect, disconnect, and ban peers directly from the dashboard
 - Mempool info with real-time stats
-- Live Bitcoin price with persistent green/red coloring
+- Live Bitcoin price with persistent price move indication
 - No accounts, no external services requiring signup, runs locally
 - Lightweight single script install
 - Real-time with SSE updates
