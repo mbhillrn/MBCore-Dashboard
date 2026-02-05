@@ -426,74 +426,110 @@ Access advanced database options from the main menu with `g`:
 
 ## Usage Tips
 
+**Pro tip:** Hover over labels and values throughout the dashboard - many elements reveal additional details in tooltips.
+
 ### Refresh Rate
 
-The peer update frequency can be adjusted in the settings dropdown (gear icon in the header). Enter any number of seconds (default: 10). Bitcoin price has its own independent update interval (also configurable, default: 10s).
+![Settings Dropdown](docs/images/17.settings-dropdown.png)
+
+The peer update frequency can be adjusted in the settings dropdown (gear icon in the header). Enter any number of seconds (default: 10).
+
+![Currency Settings](docs/images/17a.Currency-menu.png)
+
+Bitcoin price has its own settings - click the currency label (USD, EUR, etc.) to change currency or adjust the price update interval.
 
 **Recommendation:** 10 seconds provides a good balance between responsiveness and resource usage.
 
-### Peer Selection
+### Map Features
 
-Click any row in the peer table to highlight that peer on the map. The map will fly to the peer's location and display its information popup. You can also click connected entries in the Recent Updates sidebar to fly to newly connected peers.
+#### Map Display Modes
 
-### Private Networks on the Map
+![Map Modes](docs/images/11.map-modes.png)
 
-Peers using private networks (Tor, I2P, CJDNS) and peers with unavailable geo-location don't have real geographic coordinates. These peers are shown on the map, scattered across the northern coast of Antarctica. Each peer maintains a stable position during its connection. You can identify them by their network color.
+Choose how the map displays:
+- **Normal** - Standard finite world map
+- **Wrap + Points** - World wraps with ghost markers at edges
+- **Wrap Only** - World wraps without ghost markers
+- **Stretched** - Horizontal stretch to see more area
 
-Click "Hide"/"Show" in the map legend (next to "Private") to toggle Antarctica dots.
+#### Region Selector
+
+![Region Selector](docs/images/12.region-selector.png)
+
+Quick-jump to specific regions: World, North America, South America, Europe, Africa, Middle East, Asia, Oceania, or Antarctica.
+
+#### Peer Popups
+
+![Peer Popup](docs/images/13.peer-popup.png)
+
+Click any peer dot on the map to see detailed information:
+- **ID** - The peer's Bitcoin Core ID
+- **Address** - The peer's network address
+- **Network** - IPv4, IPv6, Tor, I2P, or CJDNS
+- **Location** - City, region, country, continent
+- **ISP** - Internet service provider (e.g., SpaceX Starlink)
+- **Connection** - INB (inbound) or outbound type
+- **Duration** - How long connected (e.g., 7d3h)
+
+#### Private Networks (Antarctica)
+
+![Antarctica](docs/images/14.antarctica.png)
+
+Peers using private networks (Tor, I2P, CJDNS) don't have real geographic coordinates. These peers are displayed along the northern coast of Antarctica for visualization. The popup shows "(Location Private) - Shown in Antarctica for display only."
+
+Toggle Antarctica dots on/off using the "Hide"/"Show" link in the map legend next to "Private".
+
+### Peer Table
+
+#### Network Filters
+
+![Peer Table Filters](docs/images/15.peer-table-filters.png)
+
+Filter peers by network type using the buttons above the table: All, IPv4, IPv6, Tor, I2P, or CJDNS. The active filter stays highlighted in its network color.
+
+#### Column Configuration
+
+![Column Config](docs/images/16.column-config.png)
+
+Click the column button (≡) above the table to show/hide columns. You can also:
+- Drag column headers to reorder
+- Drag column edges to resize
+- Click headers to sort (cycles: unsorted → ascending → descending)
 
 ### Sidebar
 
-The right sidebar displays live system and Bitcoin data in collapsible sections:
+![Sidebar](docs/images/23.Nodeinfo.systeminfo.bitcoinprice.recentupdates.png)
 
-- **Node Info** - Peers, blockchain size, node type, indexed status, IBD status (all with hover tooltips on both labels and values)
-- **System Information** - CPU and RAM with detailed breakdown tooltips, network traffic bars, MBCore DB status
-- **Bitcoin Price** - Live price with persistent green/red coloring, click currency label to change
-- **Recent Updates** - Fixed-height scrollable list of peer connections/disconnections
+The right sidebar displays live data in collapsible sections:
 
-Use the settings dropdown to show/hide individual sections.
+- **Node Info** - Peers, blockchain size, node type, indexed status, IBD status
+- **System Information** - CPU, RAM, network traffic bars, MBCore DB status
+- **Bitcoin Price** - Live price with green/red coloring based on direction
+- **Recent Updates** - Scrollable list of peer connections/disconnections
+
+Click section headers to collapse/expand. Use the settings dropdown to hide sections entirely.
 
 ### Blockchain Info
 
-Click the **Blockchain** button in the Node Status panel header to view detailed blockchain information:
+![Blockchain Modal](docs/images/19.blockchain-modal.png)
 
-- **Chain** - The blockchain network (main, test, signet, regtest)
-- **Sync Progress** - Visual progress bar showing verified blocks vs. total headers
-- **Block Height** - Current height of the local blockchain
-- **Best Block Hash** - Hash of the tip of the best valid chain
-- **Difficulty** - Current mining difficulty target (human-readable, e.g. "141.7 T" - hover for full number)
-- **Median Time** - Median timestamp of the last 11 blocks
-- **Chain Work** - Total proof-of-work in the active chain
-- **Initial Block Download** - Whether the node is still syncing
-- **Size on Disk** - How much disk space the blockchain uses
-- **Pruning Enabled** - Whether old blocks are deleted (shows lowest kept block)
-- **Prune Target** - Target size for pruning (if enabled)
-- **Softforks** - Status of all protocol upgrades (taproot, segwit, etc.)
+Click the **Blockchain** link in the sidebar to view detailed blockchain information. Hover over values for additional details.
 
 ### Mempool Info
 
-Click the **Mempool** button in the Node Status panel header to view detailed mempool statistics:
+![Mempool Modal](docs/images/18.mempool-modal.png)
 
-- **Pending Transactions** - Number of unconfirmed transactions
-- **Data Size** - Total size of transaction data in the mempool
-- **Memory Usage** - RAM used by the mempool
-- **Total Fees** - Sum of all fees waiting (shown in BTC and your selected currency)
-- **Max Mempool Size** - Configured maximum mempool size
-- **Min Accepted Fee** - Minimum fee rate for mempool acceptance (shown in both sat/vB and BTC/kvB)
-- **Min Relay Fee** - Policy minimum for transaction relay
-- **RBF Increment** - Minimum fee bump for Replace-By-Fee
-- **Unbroadcast Txs** - Transactions not yet announced to peers
-- **Full RBF** - Whether full Replace-By-Fee is enabled
-- **Bare Multisig Relay** - Policy for bare multisig transactions
-- **Max Data Carrier** - Maximum OP_RETURN data size
+Click the **Mempool** link in the sidebar to view detailed mempool statistics including pending transactions, fees, and policy settings.
 
 ### Peer Management
 
-The dashboard provides tools to manage peer connections directly:
+The dashboard provides tools to manage peer connections directly.
 
 #### Connect to Peer
 
-Click **Connect Peer** in the Connected Peers panel to manually connect to a peer. Enter the peer's listening address in one of these formats:
+![Connect Peer](docs/images/20.connect-peer.png)
+
+Click **Connect Peer** to manually connect to a peer. The modal shows examples for every protocol:
 
 - **IPv4:** `192.168.1.10` (port 8333 used if omitted)
 - **IPv6:** `[2001:db8::1]` (port 8333 used if omitted)
@@ -501,28 +537,46 @@ Click **Connect Peer** in the Connected Peers panel to manually connect to a pee
 - **CJDNS:** `[fc00::1]` (passed as-is)
 - **I2P:** `abc...xyz.b32.i2p:0` (port :0 is required)
 
-The modal also shows the full CLI command for permanently adding a peer.
+As you type an address, the modal automatically generates:
+- A **bitcoin-cli addnode** command with your detected datadir and conf paths - copy and paste to add the peer permanently via terminal
+- An **addnode=** line to paste directly into your bitcoin.conf file
 
 #### Disconnect Peer
 
-Click **Disconnect Peer** to open the peer management dropdown:
+![Disconnect Peer](docs/images/22.disconnect.button.menu.png)
+
+Click **Disconnect Peer** to open the management menu:
 
 1. Enter the **Peer ID** (shown in the ID column of the peer table)
-2. Optionally check **Ban IP for 24 hours** to also ban the peer's IP
-3. Click **Disconnect** to execute
+2. Optionally check **Ban IP for 24 hours**
+3. Click **Disconnect**
 
 **Note:** Banning only works for IPv4 and IPv6 peers. Tor, I2P, and CJDNS peers don't have bannable IP identities in Bitcoin Core.
 
 #### Manage Bans
 
-From the Disconnect Peer dropdown:
+From the Disconnect Peer menu:
 
-- **List Banned IPs** - View all currently banned IPs with expiry times and individual unban buttons
+- **List Banned IPs** - View all banned IPs with expiry times and individual unban buttons
 - **Clear All Bans** - Remove all IP bans at once
+
+### Geo/IP Database (Dashboard)
+
+![Geo/IP Database Modal](docs/images/21.geo.ip.database.modal.png)
+
+Click **MBCore DB** in the sidebar to view database details:
+
+- **Entries** - Number of cached peer locations
+- **Size** - Database file size
+- **Oldest** - Age of oldest entry
+- **Location** - Path to the database file
+- **Auto-lookup/Auto-update** - Current settings
+
+Click **Update** to check for new entries from the shared database - no need to go back to the terminal menu.
 
 ### Dashboard Column Reference
 
-The peer table displays detailed information about each connected peer. Click the gear icon above the table to customize which columns are visible. Columns always reset to defaults on page load.
+The peer table displays detailed information about each connected peer. Click the column button (≡) above the table to customize visible columns.
 
 #### Connection Type Badges
 
