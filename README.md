@@ -256,7 +256,7 @@ Use the LAN IP shown on the dashboard launch screen:
 http://192.168.x.x:58333
 ```
 
-Your actual IP will be displayed. If it won't connect, your firewall may be blocking port 58333 - see [Firewall Configuration](#firewall-configuration).
+Your actual IP will be displayed. If it won't connect, your firewall may be blocking port 58333 - see the next section: [Firewall Configuration](#firewall-configuration).
 
 ### From Outside Your Network (SSH Tunnel)
 
