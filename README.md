@@ -207,7 +207,7 @@ On first run, you'll choose how to handle peer geolocation data:
 
 - **Option 1: Enable and keep updated** (Recommended) - Downloads a shared database of known Bitcoin node locations for instant lookups. Auto-updates on each start.
 - **Option 2: Enable, self-managed** - Only caches peers you discover yourself. No external database.
-- **Option 3: Don't use a database** - Relies on live API lookups only (limited to 1 lookup per 1.5 seconds).
+- **Option 3: Don't use a database** - Relies on live API lookups only (still very usable with this method, although limited to one call per 1-2 seconds).
 
 If you choose Option 1, the database downloads in seconds:
 
@@ -215,7 +215,7 @@ If you choose Option 1, the database downloads in seconds:
 
 ### Recovering from Incomplete Installation
 
-If a previous installation was interrupted, the script detects this and offers to reset:
+If a previous installation was interrupted (such as power loss), the script detects this and offers to reset:
 
 ```
 MBCore Dashboard virtual environment needs to be reset
@@ -249,7 +249,7 @@ Use either address - both work:
 
 On GUI machines with a desktop, the browser opens automatically.
 
-### From Another Computer on Your Network
+### From Another Computer on Your Network (for headless setups, or just from another computer!)
 
 Use the LAN IP shown on the dashboard launch screen:
 ```
@@ -260,7 +260,7 @@ Your actual IP will be displayed. If it won't connect, your firewall may be bloc
 
 ### From Outside Your Network (SSH Tunnel)
 
-If you're accessing a remote/headless machine:
+If you're accessing a machine from outside your network, or just prefer a tunnel for security:
 
 1. From your local computer, SSH with port forwarding:
    ```bash
