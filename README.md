@@ -2,6 +2,8 @@
 
 A lightweight real-time monitoring dashboard for Bitcoin Core nodes that visualizes peer connections on an interactive world map.
 
+![MBCore Dashboard](docs/images/1.Full.Front.Dash.png)
+
 - Interactive world map of YOUR node's actual connected peers
 - Zero config - just point at bitcoind
 - All 5 protocols (IPv4, IPv6, Tor, I2P, CJDNS) with color-coded network indicators
@@ -81,7 +83,7 @@ Running a Bitcoin node is more enjoyable when you can see your peers across the 
 - **Interactive World Map** - Leaflet.js dark map (CartoDB Dark Matter) with full vertical coverage from Russia to Antarctica
 - **Map Display Modes** - Normal (finite), Wrap + Points (world wraps with ghost markers), Wrap Only (world wraps), and Stretched (horizontal stretch to see more)
 - **Fit All Button** - One-click zoom to show all connected peers; auto-fits on page load and when changing map modes
-- **Network-Colored Markers** - Each peer dot is colored by its network type (IPv4 yellow, IPv6 red, Tor blue, I2P purple, CJDNS pink)
+- **Network-Colored Markers** - Each peer dot is colored by its network type (IPv4 yellow, IPv6 red, Tor blue, I2P purple, CJDNS light purple)
 - **Antarctica Clustering** - Private network peers (Tor, I2P, CJDNS) are placed at stable positions along the northern Antarctic coastline
 - **Region Selector** - Quick-jump to World, North America, South America, Europe, Africa, Middle East, Asia, Oceania, or Antarctica
 - **Hide/Show Antarctica** - Toggle private network dots in the map legend
@@ -170,37 +172,45 @@ The script will:
 
 ## First Run
 
-On first run, the script automatically handles setup. Here's what you might see:
+On first run, the script automatically handles everything. Just answer `y` to the prompts and you're done.
 
-### Python Virtual Environment Setup
+### Step 1: Prerequisites & Virtual Environment
 
-The dashboard uses a Python virtual environment to keep its packages isolated. If you don't have one yet:
+The script checks for required system tools and sets up an isolated Python environment:
 
-```
-Checking your python...
-⚠ No virtual environment found
-? Setup virtual environment and install packages? [y/N] y
-```
+![Prerequisites and venv setup](docs/images/2.venv-prompt.png)
 
-### Ubuntu/Debian: Missing python3-venv
+Press `y` to install. If you're on Ubuntu/Debian and see a message about `python3-venv`, just press `y` again and enter your password - the script handles it.
 
-Ubuntu and Debian require an extra package for Python virtual environments. If it's not installed, you'll see:
+### Step 2: Package Installation
 
-```
-Python said:
+Once approved, packages install automatically:
 
-The virtual environment was not created successfully because ensurepip is not
-available...
+![Package installation](docs/images/3.install-success.png)
 
-We can fix this for you!
+### Step 3: Bitcoin Core Detection
 
-On Ubuntu/Debian systems, Python needs an extra package to create
-virtual environments. We can install it now.
+The script auto-detects your Bitcoin Core setup - this works for most common configurations and many uncommon ones too (custom paths, systemd services, non-standard datadirs):
 
-? Install python3.12-venv now? [y/N] y
-```
+![Bitcoin Core detection](docs/images/4.detection.png)
 
-Just press `y` and enter your password - the script handles the rest.
+Press `y` to accept the detected settings. If detection fails or finds the wrong paths, press `n` to enter them manually:
+
+![Manual configuration](docs/images/4a.manual.bitcoin.conf.entry.png)
+
+### Step 4: Geo/IP Database Setup
+
+On first run, you'll choose how to handle peer geolocation data:
+
+![GeoIP Database Setup](docs/images/4c.GeoIP.First.Run.png)
+
+- **Option 1: Enable and keep updated** (Recommended) - Downloads a shared database of known Bitcoin node locations for instant lookups. Auto-updates on each start.
+- **Option 2: Enable, self-managed** - Only caches peers you discover yourself. No external database.
+- **Option 3: Don't use a database** - Relies on live API lookups only (limited to 1 lookup per 1.5 seconds).
+
+If you choose Option 1, the database downloads in seconds:
+
+![GeoIP Database Download](docs/images/4d.GeoIP.dbdl.png)
 
 ### Recovering from Incomplete Installation
 
@@ -218,147 +228,49 @@ Your other Python environments are not affected.
 ? Reset the MBCore Dashboard virtual environment? [y/N] y
 ```
 
-### Successful Setup
-
-Once everything is installed, you'll see:
-
-```
-✓ Virtual environment created
-✓ Pip upgraded
-✓ Installed rich
-✓ Installed requests
-✓ Installed fastapi
-✓ Installed uvicorn
-✓ Installed jinja2
-✓ Installed sse_starlette
-
-** All packages installed successfully!! **
-```
-
-After this, the script proceeds to detect your Bitcoin Core installation.
+After setup completes, you'll see the main menu.
 
 ---
 
 ## How To Access The Dashboard
 
-### Scenarios:
+When you select `1) Enter MBCore Dashboard` from the main menu, you'll see this screen:
 
-- **Scenario 1:** Bitcoin Core on a full GUI Linux/Ubuntu machine with desktop and browser (not headless)
-- **Scenario 2:** Bitcoin Core on a headless Linux machine (no desktop/browser)
-  - Option A: Expose on LAN
-  - Option B: SSH Tunnel
+![Dashboard Launch](docs/images/10.dashboard-launch.png)
 
----
+The dashboard runs as a local web server. Open the URL in any browser to access it.
 
-### Scenario 1: Full GUI Linux/Ubuntu Machine (Not Headless)
+### From the Same Machine
 
-This is the easiest case. On the machine running Bitcoin Core:
+Use either address - both work:
+- `http://127.0.0.1:58333` (localhost)
+- `http://[your-lan-ip]:58333` (shown on screen)
 
-```bash
-cd /path/to/Bitcoin-Core-Peer-Map
-./da.sh
+On GUI machines with a desktop, the browser opens automatically.
+
+### From Another Computer on Your Network
+
+Use the LAN IP shown on the dashboard launch screen:
+```
+http://192.168.x.x:58333
 ```
 
-The script will:
-1. Check prerequisites (jq, curl, sqlite3, python3, etc.)
-2. Detect your Bitcoin Core setup
-3. Create a Python virtual environment
-4. Start the web server on port 58333
-5. **Automatically open your browser** to `http://127.0.0.1:58333`
+Your actual IP will be displayed. If it won't connect, your firewall may be blocking port 58333 - see [Firewall Configuration](#firewall-configuration).
 
-You're done - the dashboard appears in your browser.
+### From Outside Your Network (SSH Tunnel)
 
----
+If you're accessing a remote/headless machine:
 
-### Scenario 2: Headless Linux Machine (No Desktop/Browser)
+1. From your local computer, SSH with port forwarding:
+   ```bash
+   ssh -L 58333:127.0.0.1:58333 user@remote-machine
+   ```
 
-A headless machine has no local browser, so you need to access the dashboard from another device.
+2. Start the dashboard on the remote machine via that SSH session
 
----
+3. Open `http://127.0.0.1:58333` in your local browser
 
-#### Scenario 2 Option A: Expose on LAN
-
-On the Bitcoin Core machine (either directly or via SSH), start the dashboard:
-
-```bash
-cd /path/to/Bitcoin-Core-Peer-Map
-./da.sh
-```
-
-The script will:
-1. Check prerequisites (jq, curl, sqlite3, python3, etc.)
-2. Detect your Bitcoin Core setup
-3. Create a Python virtual environment
-4. Start the web server on port 58333
-
-Select option `1) Enter MBCore Dashboard` from the main menu.
-
-When the dashboard starts, it displays the access URLs right on screen:
-
-```
-════════════════════════════════════════════════════════════════════════════════════
-  ** FOLLOW THESE INSTRUCTIONS TO GET TO THE DASHBOARD! **
-════════════════════════════════════════════════════════════════════════════════════
-
-  To enter the dashboard, visit (First run? See README/QUICKSTART)
-
-  Scenario 1 - Local Machine Only:
-      http://127.0.0.1:58333
-
-  Scenario 2 - From Another Device on Your Network:
-    Option A - Direct LAN Access (may need firewall configured - SEE README)
-      http://192.168.x.x:58333  <- Your node's detected IP
-
-    Option B - SSH Tunnel (SEE README - then visit)
-      http://127.0.0.1:58333
-
-────────────────────────────────────────────────────────────────────────────────────
-  TROUBLESHOOTING: SEE THE README
-────────────────────────────────────────────────────────────────────────────────────
-```
-
-**Your machine's IP address will be displayed on this screen.** From any other computer on your network, open a browser and go to that address:
-
-```
-(EXAMPLE) http://192.168.x.xxx:58333
-```
-
-The correct IP for your setup will be shown in the terminal output.
-
-**If it won't connect from another device:** Your firewall may be blocking port 58333. See [Firewall Configuration](#firewall-configuration) below.
-
----
-
-#### Scenario 2 Option B: SSH Tunnel
-
-From your **other computer** (the one with a browser):
-
-```bash
-# SSH into the headless machine with a tunnel
-ssh -L 58333:127.0.0.1:58333 user@headless-machine-ip
-```
-
-Then on the headless machine (via that SSH session):
-
-```bash
-cd /path/to/Bitcoin-Core-Peer-Map
-./da.sh
-```
-
-The script will:
-1. Check prerequisites (jq, curl, sqlite3, python3, etc.)
-2. Detect your Bitcoin Core setup
-3. Create a Python virtual environment
-4. Start the web server on port 58333
-
-Select option `1) Enter MBCore Dashboard` from the main menu.
-
-Now on your **local computer's browser**, go to:
-```
-http://127.0.0.1:58333
-```
-
-The tunnel forwards your local port 58333 to the headless machine's port 58333. No firewall changes needed.
+The tunnel forwards your local port to the remote machine. No firewall changes needed.
 
 ---
 
@@ -374,10 +286,15 @@ The tunnel forwards your local port 58333 to the headless machine's port 58333. 
 
 ## Firewall Configuration
 
-**The dashboard includes a built-in Firewall Helper!** From the main menu, select `4) Firewall Helper` to:
-- Auto-detect your IP and subnet
-- Check if UFW or firewalld is active
-- Optionally add the firewall rule for you
+**The dashboard includes a built-in Firewall Helper!** From the main menu, select `3) Firewall Helper`:
+
+![Firewall Helper](docs/images/6.firewall-helper.png)
+
+The Firewall Helper automatically:
+- Detects your IP address and subnet
+- Checks if UFW or firewalld is active
+- Shows your current firewall rules for the dashboard port
+- Provides ready-to-use commands to reverse any changes
 
 **Using a different port?** Use `p) Port Settings` from the main menu to change the dashboard port before running the Firewall Helper. The helper will automatically use your configured port.
 
@@ -474,8 +391,10 @@ All detected settings are saved locally for fast startup on subsequent runs.
 
 ## Main Menu Options
 
+![Main Menu](docs/images/5.main-menu.png)
+
 1. **Enter MBCore Web Dashboard** - Launch the web-based dashboard with interactive map
-2. **Reset Config** - Clear saved Bitcoin Core configuration
+2. **Reset MBCore Config** - Clear saved Bitcoin Core configuration
 3. **Firewall Helper** - Configure firewall for network access
 
 Additional options:
@@ -485,76 +404,140 @@ Additional options:
 - **p) Port Settings** - Change the dashboard port (default: 58333). Useful if port 58333 is in use or you prefer a different port. This setting persists across reboots and updates.
 - **u) Update** - Update to the latest version (shown when an update is available)
 
+### Port Settings
+
+![Port Settings](docs/images/9.port-settings.png)
+
+Change the dashboard port if 58333 conflicts with another service or you prefer a different port. The setting persists across restarts and updates.
+
+### Auto-Update
+
+When a new version is available, you'll see the update prompt:
+
+![Auto Update](docs/images/8.Auto.Update.png)
+
+Press `y` to update - your configuration and database are preserved.
+
+### Geo/IP Database Settings
+
+Access advanced database options from the main menu with `g`:
+
+![Geo/IP Database Settings](docs/images/7.geo-database.png)
+
 ## Usage Tips
+
+**Pro tip:** Hover over labels and values throughout the dashboard - many elements reveal additional details in tooltips.
 
 ### Refresh Rate
 
-The peer update frequency can be adjusted in the settings dropdown (gear icon in the header). Enter any number of seconds (default: 10). Bitcoin price has its own independent update interval (also configurable, default: 10s).
+![Settings Dropdown](docs/images/17.settings-dropdown.png)
+
+The peer update frequency can be adjusted in the settings dropdown (gear icon in the header). Enter any number of seconds (default: 10).
+
+![Currency Settings](docs/images/17a.Currency-menu.png)
+
+Bitcoin price has its own settings - click the currency label (USD, EUR, etc.) to change currency or adjust the price update interval.
 
 **Recommendation:** 10 seconds provides a good balance between responsiveness and resource usage.
 
-### Peer Selection
+### Map Features
 
-Click any row in the peer table to highlight that peer on the map. The map will fly to the peer's location and display its information popup. You can also click connected entries in the Recent Updates sidebar to fly to newly connected peers.
+#### Map Display Modes
 
-### Private Networks on the Map
+![Map Modes](docs/images/11.map-modes.png)
 
-Peers using private networks (Tor, I2P, CJDNS) and peers with unavailable geo-location don't have real geographic coordinates. These peers are shown on the map, scattered across the northern coast of Antarctica. Each peer maintains a stable position during its connection. You can identify them by their network color.
+Choose how the map displays:
+- **Normal** - Standard finite world map
+- **Wrap + Points** - World wraps with ghost markers at edges
+- **Wrap Only** - World wraps without ghost markers
+- **Stretched** - Horizontal stretch to see more area
 
-Click "Hide"/"Show" in the map legend (next to "Private") to toggle Antarctica dots.
+#### Region Selector
+
+![Region Selector](docs/images/12.region-selector.png)
+
+Quick-jump to specific regions: World, North America, South America, Europe, Africa, Middle East, Asia, Oceania, or Antarctica.
+
+#### Peer Popups
+
+![Peer Popup](docs/images/13.peer-popup.png)
+
+Click any peer dot on the map to see detailed information:
+- **ID** - The peer's Bitcoin Core ID
+- **Address** - The peer's network address
+- **Network** - IPv4, IPv6, Tor, I2P, or CJDNS
+- **Location** - City, region, country, continent
+- **ISP** - Internet service provider (e.g., SpaceX Starlink)
+- **Connection** - INB (inbound) or outbound type
+- **Duration** - How long connected (e.g., 7d3h)
+
+#### Private Networks (Antarctica)
+
+![Antarctica](docs/images/14.antarctica.png)
+
+Peers using private networks (Tor, I2P, CJDNS) don't have real geographic coordinates. These peers are displayed along the northern coast of Antarctica for visualization. The popup shows "(Location Private) - Shown in Antarctica for display only."
+
+![Show/Hide Antarctica Toggle](docs/images/25.show.hide.penguin.png)
+
+Toggle Antarctica dots on/off using the "Hide"/"Show" link in the map legend, right next to the penguin!
+
+### Peer Table
+
+![Peer Table](docs/images/24.peer.table.list.png)
+
+The peer table shows all connected peers with live data. The header displays network counts with delta indicators (+1, -2) as peers connect and disconnect.
+
+**Default columns:** ID, Net, Duration, Type, IP, Port, Node ver/name, Service, City, State/Region, Country, Continent, ISP, Ping, Sent, Received, In Addrman?
+
+#### Network Filters
+
+![Peer Table Filters](docs/images/15.peer-table-filters.png)
+
+Filter peers by network type using the buttons above the table: All, IPv4, IPv6, Tor, I2P, or CJDNS. The active filter stays highlighted in its network color.
+
+#### Column Configuration
+
+![Column Config](docs/images/16.column-config.png)
+
+Click the column button (≡) above the table to show/hide columns. You can also:
+- Drag column headers to reorder
+- Drag column edges to resize
+- Click headers to sort (cycles: unsorted → ascending → descending)
 
 ### Sidebar
 
-The right sidebar displays live system and Bitcoin data in collapsible sections:
+![Sidebar](docs/images/23.Nodeinfo.systeminfo.bitcoinprice.recentupdates.png)
 
-- **Node Info** - Peers, blockchain size, node type, indexed status, IBD status (all with hover tooltips on both labels and values)
-- **System Information** - CPU and RAM with detailed breakdown tooltips, network traffic bars, MBCore DB status
-- **Bitcoin Price** - Live price with persistent green/red coloring, click currency label to change
-- **Recent Updates** - Fixed-height scrollable list of peer connections/disconnections
+The right sidebar displays live data in collapsible sections:
 
-Use the settings dropdown to show/hide individual sections.
+- **Node Info** - Peers, blockchain size, node type, indexed status, IBD status
+- **System Information** - CPU, RAM, network traffic bars, MBCore DB status
+- **Bitcoin Price** - Live price with green/red coloring based on direction
+- **Recent Updates** - Scrollable list of peer connections/disconnections
+
+Click section headers to collapse/expand. Use the settings dropdown to hide sections entirely.
 
 ### Blockchain Info
 
-Click the **Blockchain** button in the Node Status panel header to view detailed blockchain information:
+![Blockchain Modal](docs/images/19.blockchain-modal.png)
 
-- **Chain** - The blockchain network (main, test, signet, regtest)
-- **Sync Progress** - Visual progress bar showing verified blocks vs. total headers
-- **Block Height** - Current height of the local blockchain
-- **Best Block Hash** - Hash of the tip of the best valid chain
-- **Difficulty** - Current mining difficulty target (human-readable, e.g. "141.7 T" - hover for full number)
-- **Median Time** - Median timestamp of the last 11 blocks
-- **Chain Work** - Total proof-of-work in the active chain
-- **Initial Block Download** - Whether the node is still syncing
-- **Size on Disk** - How much disk space the blockchain uses
-- **Pruning Enabled** - Whether old blocks are deleted (shows lowest kept block)
-- **Prune Target** - Target size for pruning (if enabled)
-- **Softforks** - Status of all protocol upgrades (taproot, segwit, etc.)
+Click the **Blockchain** link in the sidebar to view detailed blockchain information. Hover over values for additional details.
 
 ### Mempool Info
 
-Click the **Mempool** button in the Node Status panel header to view detailed mempool statistics:
+![Mempool Modal](docs/images/18.mempool-modal.png)
 
-- **Pending Transactions** - Number of unconfirmed transactions
-- **Data Size** - Total size of transaction data in the mempool
-- **Memory Usage** - RAM used by the mempool
-- **Total Fees** - Sum of all fees waiting (shown in BTC and your selected currency)
-- **Max Mempool Size** - Configured maximum mempool size
-- **Min Accepted Fee** - Minimum fee rate for mempool acceptance (shown in both sat/vB and BTC/kvB)
-- **Min Relay Fee** - Policy minimum for transaction relay
-- **RBF Increment** - Minimum fee bump for Replace-By-Fee
-- **Unbroadcast Txs** - Transactions not yet announced to peers
-- **Full RBF** - Whether full Replace-By-Fee is enabled
-- **Bare Multisig Relay** - Policy for bare multisig transactions
-- **Max Data Carrier** - Maximum OP_RETURN data size
+Click the **Mempool** link in the sidebar to view detailed mempool statistics including pending transactions, fees, and policy settings.
 
 ### Peer Management
 
-The dashboard provides tools to manage peer connections directly:
+The dashboard provides tools to manage peer connections directly.
 
 #### Connect to Peer
 
-Click **Connect Peer** in the Connected Peers panel to manually connect to a peer. Enter the peer's listening address in one of these formats:
+![Connect Peer](docs/images/20.connect-peer.png)
+
+Click **Connect Peer** to manually connect to a peer. The modal shows examples for every protocol:
 
 - **IPv4:** `192.168.1.10` (port 8333 used if omitted)
 - **IPv6:** `[2001:db8::1]` (port 8333 used if omitted)
@@ -562,28 +545,46 @@ Click **Connect Peer** in the Connected Peers panel to manually connect to a pee
 - **CJDNS:** `[fc00::1]` (passed as-is)
 - **I2P:** `abc...xyz.b32.i2p:0` (port :0 is required)
 
-The modal also shows the full CLI command for permanently adding a peer.
+As you type an address, the modal automatically generates:
+- A **bitcoin-cli addnode** command with your detected datadir and conf paths - copy and paste to add the peer permanently via terminal
+- An **addnode=** line to paste directly into your bitcoin.conf file
 
 #### Disconnect Peer
 
-Click **Disconnect Peer** to open the peer management dropdown:
+![Disconnect Peer](docs/images/22.disconnect.button.menu.png)
+
+Click **Disconnect Peer** to open the management menu:
 
 1. Enter the **Peer ID** (shown in the ID column of the peer table)
-2. Optionally check **Ban IP for 24 hours** to also ban the peer's IP
-3. Click **Disconnect** to execute
+2. Optionally check **Ban IP for 24 hours**
+3. Click **Disconnect**
 
 **Note:** Banning only works for IPv4 and IPv6 peers. Tor, I2P, and CJDNS peers don't have bannable IP identities in Bitcoin Core.
 
 #### Manage Bans
 
-From the Disconnect Peer dropdown:
+From the Disconnect Peer menu:
 
-- **List Banned IPs** - View all currently banned IPs with expiry times and individual unban buttons
+- **List Banned IPs** - View all banned IPs with expiry times and individual unban buttons
 - **Clear All Bans** - Remove all IP bans at once
+
+### Geo/IP Database (Dashboard)
+
+![Geo/IP Database Modal](docs/images/21.geo.ip.database.modal.png)
+
+Click **MBCore DB** in the sidebar to view database details:
+
+- **Entries** - Number of cached peer locations
+- **Size** - Database file size
+- **Oldest** - Age of oldest entry
+- **Location** - Path to the database file
+- **Auto-lookup/Auto-update** - Current settings
+
+Click **Update** to check for new entries from the shared database - no need to go back to the terminal menu.
 
 ### Dashboard Column Reference
 
-The peer table displays detailed information about each connected peer. Click the gear icon above the table to customize which columns are visible. Columns always reset to defaults on page load.
+The peer table displays detailed information about each connected peer. Click the column button (≡) above the table to customize visible columns.
 
 #### Connection Type Badges
 
@@ -611,7 +612,7 @@ Hover over any badge to see its full description.
 
 | Column | Color Scheme |
 |--------|-------------|
-| **Network text** | All columns use network-specific colors (IPv4 yellow, IPv6 red, Tor blue, I2P purple, CJDNS pink) |
+| **Network text** | All columns use network-specific colors (IPv4 yellow, IPv6 red, Tor blue, I2P purple, CJDNS light purple) |
 | **Bytes Sent** | Blue |
 | **Bytes Received** | Green |
 | **In Addrman?** | Green for Yes, Red for No |
